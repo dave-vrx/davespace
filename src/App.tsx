@@ -23,7 +23,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
-const BUILD_ID = "2026-08-30-human-rig-xr-menu-7";
+const BUILD_ID = "2026-08-30-human-rig-xr-menu-8";
 const worlds: {
   id: WorldId;
   name: string;
@@ -133,36 +133,45 @@ export default function App() {
     localStorage.setItem("davespace-name", name.trim());
     setScreen("hub");
   };
+  const enableMic = async () => {
+    if (stream) return stream;
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      setStream(s);
+      window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: s }));
+      setMic(true);
+      setToast("Voice is live · press X to mute");
+      window.dispatchEvent(new Event("vrspace-enable-audio"));
+      return s;
+    } catch {
+      setToast("Allow microphone access to talk in DAVESPACE");
+      return null;
+    }
+  };
   const toggleMic = async () => {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
       window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: null }));
       setStream(null);
       setMic(false);
-    } else
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-        setStream(s);
-        window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: s }));
-        setMic(true);
-        setToast("Microphone ready");
-        window.dispatchEvent(new Event("vrspace-enable-audio"));
-      } catch {
-        setToast("Microphone permission blocked");
-      }
+    } else await enableMic();
   };
   useEffect(() => {
     const toggleFromVR = () => void toggleMic();
     window.addEventListener("davespace-toggle-mic", toggleFromVR);
     return () => window.removeEventListener("davespace-toggle-mic", toggleFromVR);
   }, [stream]);
-  const join = (id: WorldId) => {
+  const join = async (id: WorldId) => {
+      // The Join click is a browser-approved user gesture, so it is the correct
+      // moment to request an open microphone and unlock incoming voice.
+      await enableMic();
+      window.dispatchEvent(new Event("vrspace-enable-audio"));
       setWorld(id);
       setScreen("world");
     },

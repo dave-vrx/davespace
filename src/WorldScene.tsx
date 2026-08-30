@@ -143,6 +143,9 @@ export default function WorldScene({
         "YXZ",
       );
       avatar.rotation.set(0, headRotation.y, 0);
+      // worldToLocal must see this packet's new root transform. Without this,
+      // hands are converted through the previous frame and the arms telescope.
+      avatar.updateMatrixWorld(true);
       const left = avatar.getObjectByName("left-hand");
       const right = avatar.getObjectByName("right-hand");
       if (left) left.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.l)));
@@ -207,7 +210,8 @@ export default function WorldScene({
           : camera;
         view.getWorldPosition(xrMenu.position);
         view.getWorldQuaternion(xrMenu.quaternion);
-        xrMenu.translateZ(-1.35);
+        xrMenu.translateZ(-1.18);
+        xrMenu.translateY(-0.05);
       }
     };
     const controllers = [
@@ -817,12 +821,13 @@ function curlControllerHand(
 }
 function makeXRMenu(playerName: string) {
   const group = new THREE.Group();
+  group.name = "davespace-xr-dashboard";
   const panel = new THREE.Mesh(
     new THREE.PlaneGeometry(1.5, 1.02),
     new THREE.MeshBasicMaterial({
-      color: 0x090b22,
+      map: makeMenuSurface(playerName),
       transparent: true,
-      opacity: 0.94,
+      opacity: 0.98,
       side: THREE.DoubleSide,
     }),
   );
@@ -833,12 +838,6 @@ function makeXRMenu(playerName: string) {
   );
   glow.position.z = -0.006;
   group.add(glow);
-  const title = textSprite("DAVESPACE  /  QUICK MENU", "#ffffff", 0.72, 0.09);
-  title.position.set(-0.32, 0.41, 0.02);
-  group.add(title);
-  const identity = textSprite(`${playerName.toUpperCase()}  •  ONLINE`, "#72ffd0", 0.46, 0.055);
-  identity.position.set(0.46, 0.41, 0.02);
-  group.add(identity);
   (
     [
       ["worlds", "◈  WORLDS"],
@@ -854,7 +853,8 @@ function makeXRMenu(playerName: string) {
     const button = new THREE.Mesh(
       new THREE.PlaneGeometry(0.62, 0.145),
       new THREE.MeshBasicMaterial({
-        color: action === "leave" ? 0x602445 : index < 4 ? 0x27205d : 0x123f52,
+        map: makeMenuButton(label, action === "leave" ? "danger" : index < 4 ? "primary" : "tool"),
+        transparent: true,
         side: THREE.DoubleSide,
       }),
     );
@@ -865,17 +865,50 @@ function makeXRMenu(playerName: string) {
     );
     button.userData.action = action;
     group.add(button);
-    const text = textSprite(
-      label,
-      action === "leave" ? "#ff9ba3" : "#eafff7",
-      0.5,
-      0.055,
-    );
-    text.position.copy(button.position);
-    text.position.z = 0.02;
-    group.add(text);
   });
+  const footer = textSprite("Y  CLOSE     X  MUTE     TRIGGER  SELECT", "#a9b4da", 0.78, 0.045);
+  footer.position.set(0, -0.445, 0.022);
+  group.add(footer);
   return group;
+}
+
+function makeMenuSurface(playerName: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 816;
+  const ctx = canvas.getContext("2d")!;
+  const gradient = ctx.createLinearGradient(0, 0, 1200, 816);
+  gradient.addColorStop(0, "#17143f");
+  gradient.addColorStop(0.55, "#090d25");
+  gradient.addColorStop(1, "#071b28");
+  ctx.fillStyle = gradient;
+  ctx.beginPath(); ctx.roundRect(8, 8, 1184, 800, 54); ctx.fill();
+  ctx.strokeStyle = "rgba(137,112,255,.9)"; ctx.lineWidth = 6; ctx.stroke();
+  ctx.fillStyle = "#7657ff"; ctx.beginPath(); ctx.arc(72, 70, 34, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#62f4d3"; ctx.lineWidth = 7; ctx.beginPath(); ctx.ellipse(72, 70, 50, 18, -0.45, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.font = "900 46px system-ui"; ctx.fillText("DAVESPACE", 135, 84);
+  ctx.fillStyle = "#aeb7db"; ctx.font = "600 22px system-ui"; ctx.fillText("QUICK MENU", 426, 82);
+  ctx.fillStyle = "#61f1cf"; ctx.textAlign = "right"; ctx.fillText(`${playerName.toUpperCase()}  •  LIVE`, 1120, 82);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,.055)"; ctx.beginPath(); ctx.roundRect(48, 128, 1104, 590, 34); ctx.fill();
+  ctx.fillStyle = "#8f9ac4"; ctx.font = "700 20px system-ui"; ctx.fillText("SOCIAL & TRAVEL", 85, 168); ctx.fillText("CREATE & PLAY", 635, 168);
+  ctx.fillStyle = "#fff"; ctx.font = "800 28px system-ui"; ctx.fillText("Point and pull the trigger", 85, 690);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeMenuButton(label: string, tone: "primary" | "tool" | "danger") {
+  const canvas = document.createElement("canvas");
+  canvas.width = 620; canvas.height = 150;
+  const ctx = canvas.getContext("2d")!;
+  const colors = tone === "danger" ? ["#6f2448", "#421a38"] : tone === "tool" ? ["#145168", "#133246"] : ["#4936a5", "#29245f"];
+  const gradient = ctx.createLinearGradient(0, 0, 620, 150);
+  gradient.addColorStop(0, colors[0]); gradient.addColorStop(1, colors[1]);
+  ctx.fillStyle = gradient; ctx.beginPath(); ctx.roundRect(4, 4, 612, 142, 30); ctx.fill();
+  ctx.strokeStyle = tone === "danger" ? "#ff6fae" : tone === "tool" ? "#58e8ed" : "#9d8aff"; ctx.lineWidth = 5; ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.font = "800 30px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, 310, 77);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
 }
 
 function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {

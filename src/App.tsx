@@ -17,6 +17,7 @@ import {
 import WorldScene, { type WorldId } from "./WorldScene";
 import "./App.css";
 import "./Enhance.css";
+import "./Mobile.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
 const worlds: {
@@ -230,6 +231,51 @@ export default function App() {
             <MessageCircle />
             <span>CHAT</span>
           </button>
+        </div>
+        <button
+          className="mobile-menu"
+          aria-label="Open world menu"
+          onClick={() => setPanel((v) => !v)}
+        >
+          <span>☰</span> MENU
+        </button>
+        <div className="mobile-pad" aria-label="Mobile movement controls">
+          {(
+            [
+              ["forward", "▲"],
+              ["left", "◀"],
+              ["back", "▼"],
+              ["right", "▶"],
+            ] as const
+          ).map(([direction, label]) => (
+            <button
+              key={direction}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                window.dispatchEvent(
+                  new CustomEvent("vrspace-mobile-move", {
+                    detail: { direction, active: true },
+                  }),
+                );
+              }}
+              onPointerUp={() =>
+                window.dispatchEvent(
+                  new CustomEvent("vrspace-mobile-move", {
+                    detail: { direction, active: false },
+                  }),
+                )
+              }
+              onPointerCancel={() =>
+                window.dispatchEvent(
+                  new CustomEvent("vrspace-mobile-move", {
+                    detail: { direction, active: false },
+                  }),
+                )
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
         {panel && (
           <aside className="social-panel">

@@ -1,0 +1,60 @@
+.mobile-menu,
+.mobile-pad {
+  display: none;
+}
+.mobile-menu {
+  position: fixed;
+  z-index: 12;
+  right: 14px;
+  bottom: 90px;
+  padding: 12px 16px;
+  border: 1px solid var(--mint);
+  border-radius: 12px;
+  background: #081019e8;
+  color: var(--mint);
+  font-weight: 900;
+}
+.mobile-pad {
+  position: fixed;
+  z-index: 12;
+  left: 18px;
+  bottom: 82px;
+  width: 132px;
+  height: 132px;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 4px;
+}
+.mobile-pad button {
+  border: 1px solid #70f1bd88;
+  border-radius: 10px;
+  background: #081019dc;
+  color: var(--mint);
+  touch-action: none;
+  font-size: 18px;
+}
+.mobile-pad button:nth-child(1) {
+  grid-area: 1/2;
+}
+.mobile-pad button:nth-child(2) {
+  grid-area: 2/1;
+}
+.mobile-pad button:nth-child(3) {
+  grid-area: 3/2;
+}
+.mobile-pad button:nth-child(4) {
+  grid-area: 2/3;
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .mobile-menu {
+    display: block;
+  }
+  .mobile-pad {
+    display: grid;
+  }
+  .world-controls {
+    display: none;
+  }
+  .world-top button {
+    display: none;
+  }
+}

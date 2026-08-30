@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
-import { joinRoom } from "trystero";
+import { joinRoom, selfId } from "trystero";
 export type WorldId = "fireside" | "neon" | "garden" | "studio";
 const M = (c: number, e = 0) =>
   new THREE.MeshStandardMaterial({
@@ -38,6 +38,12 @@ export default function WorldScene({
       rig = new THREE.Group();
     camera.position.set(0, 1.7, 7);
     rig.add(camera);
+    const spawnAngle =
+      (([...selfId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 12) /
+        12) *
+      Math.PI *
+      2;
+    rig.position.set(Math.cos(spawnAngle) * 2.4, 0, Math.sin(spawnAngle) * 2.4);
     scene.add(rig);
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -183,6 +189,7 @@ export default function WorldScene({
       });
     });
     const keys = new Set<string>();
+    const mobile = new Set<string>();
     let yaw = 0,
       pitch = 0,
       drag = false,
@@ -246,12 +253,19 @@ export default function WorldScene({
           }
         }
       };
+    const mobileMove = (event: Event) => {
+      const { direction, active } = (
+        event as CustomEvent<{ direction: string; active: boolean }>
+      ).detail;
+      active ? mobile.add(direction) : mobile.delete(direction);
+    };
     addEventListener("keydown", kd, { passive: false });
     addEventListener("keyup", ku);
     addEventListener("mousemove", look);
     addEventListener("pointerup", up);
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("dblclick", click);
+    window.addEventListener("vrspace-mobile-move", mobileMove);
     const resize = () => {
         renderer.setSize(root.clientWidth, root.clientHeight, false);
         camera.aspect = root.clientWidth / root.clientHeight;
@@ -275,10 +289,14 @@ export default function WorldScene({
       }
       let forward =
           (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
-          (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0),
+          (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) +
+          (mobile.has("forward") ? 1 : 0) -
+          (mobile.has("back") ? 1 : 0),
         side =
           (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) -
-          (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
+          (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0) +
+          (mobile.has("right") ? 1 : 0) -
+          (mobile.has("left") ? 1 : 0);
       if (renderer.xr.isPresenting) {
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
@@ -311,8 +329,25 @@ export default function WorldScene({
           : camera;
         head.getWorldPosition(headPosition);
         head.getWorldQuaternion(headQuaternion);
-        controllers[0].getWorldPosition(leftPosition);
-        controllers[1].getWorldPosition(rightPosition);
+        if (renderer.xr.isPresenting) {
+          controllers[0].getWorldPosition(leftPosition);
+          controllers[1].getWorldPosition(rightPosition);
+        } else {
+          leftPosition
+            .copy(headPosition)
+            .add(
+              new THREE.Vector3(-0.32, -0.35, -0.18).applyQuaternion(
+                headQuaternion,
+              ),
+            );
+          rightPosition
+            .copy(headPosition)
+            .add(
+              new THREE.Vector3(0.32, -0.35, -0.18).applyQuaternion(
+                headQuaternion,
+              ),
+            );
+        }
         poseAction.send({
           p: headPosition.toArray(),
           q: headQuaternion.toArray(),
@@ -336,6 +371,7 @@ export default function WorldScene({
       removeEventListener("mousemove", look);
       removeEventListener("pointerup", up);
       window.removeEventListener("vrspace-send-chat", sendChat);
+      window.removeEventListener("vrspace-mobile-move", mobileMove);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       renderer.dispose();
@@ -521,13 +557,23 @@ function screen(s: THREE.Scene) {
 }
 function makeHand(side: string) {
   const g = new THREE.Group(),
-    skin = M(0xd5a17d),
-    p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.06), skin);
+    hologram = new THREE.ShaderMaterial({
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { glow: { value: new THREE.Color(0x70f1bd) } },
+      vertexShader:
+        "varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=(modelViewMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*vec4(p,1.);}",
+      fragmentShader:
+        "uniform vec3 glow;varying vec3 n;varying vec3 p;void main(){float rim=pow(1.-abs(dot(normalize(n),normalize(-p))),2.);float scan=.7+.3*sin(p.y*90.);gl_FragColor=vec4(glow,(.3+rim*.7)*scan);}",
+    }),
+    p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.06), hologram);
   g.add(p);
   for (let i = 0; i < 5; i++) {
     const f = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.018, 0.09, 3, 6),
-      skin,
+      hologram,
     );
     f.position.set((i - 2) * 0.027, 0.1, -0.02);
     g.add(f);
@@ -583,7 +629,8 @@ function makeBody() {
   const g = new THREE.Group(),
     cloth = M(0x536fff),
     skin = M(0xd5a17d);
-  g.position.set(0, -1.72, -0.2);
+  // Body is head-relative so looking down shows the local chest and arms.
+  g.position.set(0, -0.67, -0.16);
   for (const x of [-0.28, 0.28]) {
     const arm = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.055, 0.4, 4, 8),

@@ -132,6 +132,7 @@ export default function App() {
   const toggleMic = async () => {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
+      window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: null }));
       setStream(null);
       setMic(false);
     } else
@@ -144,6 +145,7 @@ export default function App() {
           },
         });
         setStream(s);
+        window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: s }));
         setMic(true);
         setToast("Microphone ready");
         window.dispatchEvent(new Event("vrspace-enable-audio"));
@@ -151,6 +153,11 @@ export default function App() {
         setToast("Microphone permission blocked");
       }
   };
+  useEffect(() => {
+    const toggleFromVR = () => void toggleMic();
+    window.addEventListener("davespace-toggle-mic", toggleFromVR);
+    return () => window.removeEventListener("davespace-toggle-mic", toggleFromVR);
+  }, [stream]);
   const join = (id: WorldId) => {
       setWorld(id);
       setScreen("world");
@@ -167,7 +174,7 @@ export default function App() {
       }
     },
     add = () => {
-      const v = prompt("Enter a VRSpace username");
+      const v = prompt("Enter a DAVESPACE username");
       if (v?.trim()) {
         setFriends((f) => [...f, [v.trim(), "Request sent", "#70f1bd"]]);
         setToast("Friend request sent");
@@ -177,7 +184,7 @@ export default function App() {
     return (
       <div className="boot">
         <img src={`${import.meta.env.BASE_URL}logo.svg`} />
-        <h1>VRSPACE</h1>
+        <h1>DAVESPACE</h1>
         <p>OPENING THE METAVERSE</p>
         <i />
       </div>
@@ -196,7 +203,7 @@ export default function App() {
           </span>
         </div>
         <section>
-          <small>WELCOME TO VRSPACE</small>
+          <small>WELCOME TO DAVESPACE</small>
           <h1>Choose your name</h1>
           <p>Create your identity for worlds, friends and messages.</p>
           <input
@@ -326,7 +333,7 @@ export default function App() {
             className="logo-img"
             src={`${import.meta.env.BASE_URL}logo.svg`}
           />
-          <strong>VRSpace</strong>
+          <strong>DAVESPACE</strong>
         </div>
         {(["discover", "social", "worlds", "create"] as Tab[]).map((t, i) => {
           const I = [Compass, Users, Box, Waypoints][i];

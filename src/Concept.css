@@ -5,7 +5,7 @@
   grid-template-columns: 218px 1fr;
   background-image:
     linear-gradient(90deg, #050914e8, #05091485 50%, #050914e8),
-    url("/vrspace/vrspace-lounge.png");
+    url("/davespace/vrspace-lounge.png");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -62,7 +62,7 @@
   border-color: #8c6cff55;
   background:
     linear-gradient(90deg, #0a1122ee, #0a112275 58%, #11132633),
-    url("/vrspace/vrspace-lounge.png");
+    url("/davespace/vrspace-lounge.png");
   background-size: cover;
   background-position: center;
   box-shadow: 0 26px 80px #0009;
@@ -98,7 +98,7 @@
 .world-visual.fireside {
   background:
     linear-gradient(160deg, transparent, #f36d3666),
-    url("/vrspace/vrspace-lounge.png") center/cover;
+    url("/davespace/vrspace-lounge.png") center/cover;
 }
 .world-visual.neon {
   background: linear-gradient(145deg, #22104a, #6941ff 56%, #14cce0);

@@ -179,7 +179,15 @@ export default function WorldScene({
       peerAudio.forEach((audio) => void audio.play().catch(() => undefined));
     window.addEventListener("vrspace-enable-audio", unlockAudio);
     nameAction.send(playerName);
-    if (audioStream) room.addStream(audioStream);
+    let sharedAudioStream = audioStream;
+    if (sharedAudioStream) room.addStream(sharedAudioStream);
+    const changeAudioStream = (event: Event) => {
+      const next = (event as CustomEvent<MediaStream | null>).detail;
+      if (sharedAudioStream) room.removeStream(sharedAudioStream);
+      sharedAudioStream = next;
+      if (sharedAudioStream) room.addStream(sharedAudioStream);
+    };
+    window.addEventListener("davespace-audio-stream", changeAudioStream);
     const body = makeBody();
     camera.add(body);
     const xrMenu = makeXRMenu();
@@ -377,7 +385,8 @@ export default function WorldScene({
     resize();
     const clock = new THREE.Clock();
     let lastPose = 0,
-      yWasPressed = false;
+      yWasPressed = false,
+      xWasPressed = false;
     const headPosition = new THREE.Vector3(),
       headQuaternion = new THREE.Quaternion();
     const leftPosition = new THREE.Vector3(),
@@ -400,15 +409,15 @@ export default function WorldScene({
           (mobile.has("right") ? 1 : 0) -
           (mobile.has("left") ? 1 : 0);
       if (renderer.xr.isPresenting) {
-        let yPressed = false;
+        let yPressed = false,
+          xPressed = false;
         let jumpPressed = false;
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
           if (source.handedness === "left") {
             const buttons = source.gamepad?.buttons ?? [];
-            yPressed = Boolean(
-              buttons[3]?.pressed || buttons[4]?.pressed || buttons[5]?.pressed,
-            );
+            xPressed = Boolean(buttons[4]?.pressed);
+            yPressed = Boolean(buttons[5]?.pressed);
           }
           if (source.handedness === "right") {
             const buttons = source.gamepad?.buttons ?? [];
@@ -439,6 +448,9 @@ export default function WorldScene({
         }
         if (yPressed && !yWasPressed) toggleXRMenu();
         yWasPressed = yPressed;
+        if (xPressed && !xWasPressed)
+          window.dispatchEvent(new Event("davespace-toggle-mic"));
+        xWasPressed = xPressed;
         if (jumpPressed && !jumpWasPressed && rig.position.y <= 0.001)
           verticalVelocity = 5.4;
         jumpWasPressed = jumpPressed;
@@ -514,12 +526,13 @@ export default function WorldScene({
       window.removeEventListener("vrspace-send-chat", sendChat);
       window.removeEventListener("vrspace-mobile-move", mobileMove);
       window.removeEventListener("vrspace-enable-audio", unlockAudio);
+      window.removeEventListener("davespace-audio-stream", changeAudioStream);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       renderer.dispose();
       root.replaceChildren();
     };
-  }, [world, playerName, audioStream, onExit]);
+  }, [world, playerName, onExit]);
   return <div className="world-scene" ref={host} />;
 }
 function build(
@@ -791,7 +804,7 @@ function makeXRMenu() {
     }),
   );
   group.add(panel);
-  const title = textSprite("VRSPACE", "#70f1bd", 0.28, 0.07);
+  const title = textSprite("DAVESPACE", "#70f1bd", 0.32, 0.07);
   title.position.set(0, 0.29, 0.01);
   group.add(title);
   (

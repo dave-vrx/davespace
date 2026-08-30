@@ -23,7 +23,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
-const BUILD_ID = "2026-08-30-quest-grip-rig-9";
+const BUILD_ID = "2026-08-30-nova-rig-worlds-10";
 const worlds: {
   id: WorldId;
   name: string;
@@ -69,6 +69,10 @@ const worlds: {
     icon: "⬡",
     desc: "Grab, move and arrange objects together.",
   },
+  { id: "ocean", name: "Aqua Abyss", tag: "DIVE", people: 6, color: "#29d9ff", icon: "≈", desc: "Bioluminescent reefs and drifting light sculptures." },
+  { id: "moon", name: "Lunar Commons", tag: "EXPLORE", people: 8, color: "#91a7ff", icon: "◐", desc: "Low-gravity social plaza beneath a giant planet." },
+  { id: "arcade", name: "Pulse Arcade", tag: "PLAY", people: 14, color: "#ff4fad", icon: "✣", desc: "Targets, neon toys and multiplayer game spaces." },
+  { id: "gallery", name: "Prism Gallery", tag: "CREATE", people: 5, color: "#ffcf73", icon: "◇", desc: "Walk through kinetic community art and media." },
 ];
 const seedFriends = [
   ["NovaSkye", "In Dream Garden", "#8b7cff"],
@@ -94,6 +98,11 @@ export default function App() {
       url.searchParams.set("build", BUILD_ID);
       location.replace(url.toString());
     }
+  }, []);
+  useEffect(() => {
+    const notify = (event: Event) => setToast((event as CustomEvent<string>).detail);
+    window.addEventListener("davespace-system-notification", notify);
+    return () => window.removeEventListener("davespace-system-notification", notify);
   }, []);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -598,36 +607,39 @@ function Chat({
 }
 function YouTubePlayer() {
   const [input, setInput] = useState(""),
-    [videoId, setVideoId] = useState("");
+    [sharedUrl, setSharedUrl] = useState("");
+  useEffect(() => {
+    const receive = (event: Event) => setSharedUrl((event as CustomEvent<string>).detail);
+    window.addEventListener("davespace-browser-url", receive);
+    return () => window.removeEventListener("davespace-browser-url", receive);
+  }, []);
   const load = () => {
     const match =
       input.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{11})/) ??
       input.match(/^([A-Za-z0-9_-]{11})$/);
-    if (match?.[1]) setVideoId(match[1]);
-    else
-      window.open(
-        `https://www.youtube.com/results?search_query=${encodeURIComponent(input)}`,
-        "_blank",
-        "noopener",
-      );
+    const url = match?.[1]
+      ? `https://www.youtube.com/embed/${match[1]}?playsinline=1&autoplay=1`
+      : /^https?:\/\//i.test(input) ? input : `https://www.youtube.com/results?search_query=${encodeURIComponent(input)}`;
+    setSharedUrl(url);
+    window.dispatchEvent(new CustomEvent("davespace-share-browser", { detail: url }));
   };
   return (
     <section className="page-card youtube">
-      <small>WORLD VIDEO</small>
-      <h2>YouTube</h2>
+      <small>SHARED WORLD SURFACE</small>
+      <h2>Browser & media</h2>
       <div className="composer">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && load()}
-          placeholder="Paste a YouTube link or search"
+          placeholder="Paste a website or YouTube link"
         />
         <button onClick={load}>LOAD</button>
       </div>
-      {videoId && (
+      {sharedUrl && (
         <iframe
-          title="YouTube player"
-          src={`https://www.youtube.com/embed/${videoId}?playsinline=1`}
+          title="Shared browser"
+          src={sharedUrl}
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
         />

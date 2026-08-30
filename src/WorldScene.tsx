@@ -5,7 +5,7 @@ import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { joinRoom, selfId } from "trystero";
-export type WorldId = "fireside" | "neon" | "garden" | "studio";
+export type WorldId = "fireside" | "neon" | "garden" | "studio" | "ocean" | "moon" | "arcade" | "gallery";
 const M = (c: number, e = 0) =>
   new THREE.MeshStandardMaterial({
     color: c,
@@ -34,12 +34,16 @@ export default function WorldScene({
         neon: [0x09051b, 0x25145c],
         garden: [0x081d20, 0x214d3f],
         studio: [0x0a1321, 0x253b55],
+        ocean: [0x031a2b, 0x07536b],
+        moon: [0x080b18, 0x30384f],
+        arcade: [0x17051d, 0x4a164e],
+        gallery: [0x10131c, 0x4d4439],
       }[world];
     scene.background = new THREE.Color(palette[0]);
     scene.fog = new THREE.FogExp2(palette[0], 0.024);
     const camera = new THREE.PerspectiveCamera(68, 1, 0.05, 120),
       rig = new THREE.Group();
-    camera.position.set(0, 1.7, 7);
+    camera.position.set(0, 1.7, 0);
     rig.add(camera);
     const spawnAngle =
       (([...selfId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 12) /
@@ -89,6 +93,7 @@ export default function WorldScene({
     }>("pose");
     const nameAction = room.makeAction<string>("name");
     const chatAction = room.makeAction<string>("chat");
+    const browserAction = room.makeAction<string>("browser");
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
     let avatarTemplate: THREE.Object3D | null = null;
@@ -135,6 +140,8 @@ export default function WorldScene({
       if (old) scene.remove(old);
       remoteAvatars.delete(peerId);
       ensurePeer(peerId);
+      showHUDNotice(camera, `${peerName} joined the world`, "#72ffd0");
+      window.dispatchEvent(new CustomEvent("davespace-system-notification", { detail: `${peerName} joined the world` }));
     };
     poseAction.onMessage = (pose, { peerId }) => {
       const avatar = ensurePeer(peerId);
@@ -164,9 +171,15 @@ export default function WorldScene({
         new CustomEvent("vrspace-chat", { detail: message }),
       );
     };
+    browserAction.onMessage = (url) => {
+      window.dispatchEvent(new CustomEvent("davespace-browser-url", { detail: url }));
+    };
     const sendChat = (event: Event) =>
       chatAction.send((event as CustomEvent<string>).detail);
     window.addEventListener("vrspace-send-chat", sendChat);
+    const shareBrowser = (event: Event) =>
+      browserAction.send((event as CustomEvent<string>).detail);
+    window.addEventListener("davespace-share-browser", shareBrowser);
     room.onPeerJoin = (peerId) => {
       ensurePeer(peerId);
       publishPresence();
@@ -174,12 +187,15 @@ export default function WorldScene({
       if (audioStream) room.addStream(audioStream, { target: peerId });
     };
     room.onPeerLeave = (peerId) => {
+      const departingName = remoteNames.get(peerId) ?? "A player";
       const avatar = remoteAvatars.get(peerId);
       if (avatar) scene.remove(avatar);
       remoteAvatars.delete(peerId);
       publishPresence();
       peerAudio.get(peerId)?.remove();
       peerAudio.delete(peerId);
+      showHUDNotice(camera, `${departingName} left the world`, "#ff8dbb");
+      window.dispatchEvent(new CustomEvent("davespace-system-notification", { detail: `${departingName} left the world` }));
     };
     room.onPeerStream = (stream, peerId) => {
       const audio = new Audio();
@@ -289,7 +305,7 @@ export default function WorldScene({
             if (action === "social")
               showXRNotice(xrMenu, "FRIENDS", "NovaSkye · PixelFox · OrbitDave");
             if (action === "worlds") {
-              const order: WorldId[] = ["fireside", "neon", "garden", "studio"];
+              const order: WorldId[] = ["fireside", "neon", "garden", "studio", "ocean", "moon", "arcade", "gallery"];
               window.dispatchEvent(new CustomEvent("davespace-change-world", {
                 detail: order[(order.indexOf(world) + 1) % order.length],
               }));
@@ -557,6 +573,7 @@ export default function WorldScene({
       removeEventListener("mousemove", look);
       removeEventListener("pointerup", up);
       window.removeEventListener("vrspace-send-chat", sendChat);
+      window.removeEventListener("davespace-share-browser", shareBrowser);
       window.removeEventListener("vrspace-mobile-move", mobileMove);
       window.removeEventListener("vrspace-enable-audio", unlockAudio);
       window.removeEventListener("davespace-audio-stream", changeAudioStream);
@@ -617,6 +634,23 @@ function build(
     light.position.y = 1;
     fire.add(light);
     s.add(fire);
+    // Social seating, lanterns and tents make the lobby read as a place rather
+    // than a geometry demo while keeping the draw count headset-friendly.
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(1.65, .24, .42), M(0x6d3c24));
+      seat.position.set(Math.cos(angle) * 3.25, .42, Math.sin(angle) * 3.25 - 2.5);
+      seat.rotation.y = -angle;
+      seat.castShadow = true; s.add(seat);
+      const lantern = new THREE.PointLight(0xffba65, 4, 5);
+      lantern.position.set(Math.cos(angle) * 5.3, 1.35, Math.sin(angle) * 5.3 - 2.5); s.add(lantern);
+    }
+    for (const x of [-7, 7]) {
+      const tent = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.5, 4), M(x < 0 ? 0x7854d8 : 0x2da78f, .08));
+      tent.position.set(x, 1.25, -5); tent.rotation.y = Math.PI / 4; tent.castShadow = true; s.add(tent);
+    }
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(1.25, 24, 16), M(0xdde9ff, 1.1));
+    moon.position.set(-10, 12, -22); s.add(moon);
     screen(s);
   }
   if (w === "neon") {
@@ -699,6 +733,24 @@ function build(
     }
     screen(s);
   }
+  if (["ocean", "moon", "arcade", "gallery"].includes(w)) {
+    const colors: Record<string, number[]> = {
+      ocean: [0x29d9ff, 0x0a718f, 0x72ffd0], moon: [0xd9e4ff, 0x687499, 0x91a7ff],
+      arcade: [0xff4fad, 0x754dff, 0x39f1da], gallery: [0xffcf73, 0xf28f52, 0x76d5ff],
+    };
+    const c = colors[w];
+    for (let i = 0; i < 28; i++) {
+      const angle = i * 0.73, radius = 3 + (i % 7) * 1.65;
+      const geometry = w === "ocean" ? new THREE.ConeGeometry(.25, 1.6, 7)
+        : w === "moon" ? new THREE.DodecahedronGeometry(.35 + (i % 3) * .12)
+        : w === "arcade" ? new THREE.BoxGeometry(.6, 1.1, .35)
+        : new THREE.TorusKnotGeometry(.2, .06, 40, 7);
+      const object = new THREE.Mesh(geometry, M(c[i % 3], .35));
+      object.position.set(Math.cos(angle) * radius, .7 + (i % 4) * .45, Math.sin(angle) * radius - 3);
+      object.castShadow = true; s.add(object); a.push(object);
+    }
+    if (w === "arcade" || w === "gallery") screen(s);
+  }
 }
 function addAtmosphere(scene: THREE.Scene, world: WorldId) {
   const count = 900,
@@ -750,9 +802,16 @@ function makeRemoteAvatar(
   const group = new THREE.Group();
   const skin = M(0xd5a17d),
     cloth = M(0x536fff, 0.08);
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18, 2), skin);
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.205, 3), M(0x15172a, .18));
   head.name = "avatar-head";
   head.position.y = 1.67;
+  const visor = new THREE.Mesh(
+    new THREE.SphereGeometry(.165, 20, 10, -.95, 1.9, .72, 1.05),
+    new THREE.MeshPhysicalMaterial({ color: 0x5cf4ea, emissive: 0x5b38ff, emissiveIntensity: 1.3, metalness: .55, roughness: .12 }),
+  );
+  visor.rotation.x = -.18;
+  visor.position.set(0, .01, -.105);
+  head.add(visor);
   const torso = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.2, 0.42, 5, 10),
     cloth,
@@ -773,7 +832,7 @@ function makeRemoteAvatar(
       }
     });
     group.add(model);
-    head.visible = false;
+    head.visible = true;
     torso.visible = false;
   }
   group.add(head, torso);
@@ -946,6 +1005,14 @@ function showXRNotice(menu: THREE.Group, title: string, message: string) {
   notice.position.set(0, -0.62, 0.03);
   menu.add(notice);
   window.setTimeout(() => notice.removeFromParent(), 4200);
+}
+
+function showHUDNotice(camera: THREE.Camera, message: string, color: string) {
+  const notice = textSprite(message, color, 0.72, 0.08);
+  notice.position.set(0, 0.34, -1.05);
+  notice.renderOrder = 999;
+  camera.add(notice);
+  window.setTimeout(() => notice.removeFromParent(), 3800);
 }
 
 function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {

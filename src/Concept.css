@@ -80,6 +80,27 @@
 .event-grid button { border:0; border-radius:12px; padding:11px 15px; color:white; background:linear-gradient(90deg,var(--violet),var(--pink)); font-weight:800; }
 .toast { background:linear-gradient(100deg,#29205f,#141a36)!important; border:1px solid #8c73ff!important; box-shadow:0 15px 50px rgba(40,20,100,.55)!important; }
 @media(max-width:850px){.event-grid{grid-template-columns:1fr}.events-page{padding:18px}}
+
+/* NOVA POP brand system */
+:root { --violet:#6257ff; --aqua:#27dfc1; --pink:#ff5c8a; --sun:#ffd166; }
+.hub { background:radial-gradient(circle at 92% 6%,rgba(255,92,138,.2),transparent 28%),radial-gradient(circle at 24% 90%,rgba(39,223,193,.15),transparent 30%),#090b1c; }
+.hub > aside { margin:14px 0 14px 14px; height:calc(100vh - 28px); border:1px solid rgba(255,255,255,.1); border-radius:26px; background:linear-gradient(165deg,#171a3b,#0d1128); box-shadow:0 24px 70px rgba(0,0,0,.38); }
+.brand strong { letter-spacing:-.035em; font-size:20px; }
+.hub > aside button { border-radius:15px; margin:3px 10px; width:calc(100% - 20px); }
+.hub > aside button.active { background:linear-gradient(100deg,#6257ff,#ff5c8a); }
+.hub main { padding:28px 42px 60px; }
+.hero-card { min-height:420px; border-radius:34px; overflow:hidden; border:1px solid rgba(255,255,255,.16); box-shadow:0 30px 100px rgba(0,0,0,.5); }
+.hero-card:after { content:"LIVE SOCIAL WEBXR"; position:absolute; right:28px; top:26px; padding:10px 15px; border-radius:999px; background:rgba(9,11,28,.72); border:1px solid rgba(255,255,255,.2); color:#65f5d7; font-size:11px; font-weight:900; letter-spacing:.12em; }
+.world-grid { gap:20px; }
+.world-grid article { border-radius:24px; overflow:hidden; background:linear-gradient(155deg,#181c3b,#0c1025); }
+.world-visual { min-height:160px; background:radial-gradient(circle at 70% 20%,color-mix(in srgb,var(--world) 70%,white),transparent 8%),linear-gradient(145deg,color-mix(in srgb,var(--world) 45%,#13172e),#0a0e21)!important; }
+.world-visual span { filter:drop-shadow(0 0 22px var(--world)); transform:scale(1.25); }
+.page-card { border-radius:28px; }
+.world-top,.world-controls { background:rgba(12,15,38,.82)!important; border:1px solid rgba(255,255,255,.13)!important; backdrop-filter:blur(22px); }
+.world-top { border-radius:20px!important; margin:12px; width:calc(100% - 24px)!important; }
+.world-controls { border-radius:20px!important; }
+.social-panel { background:linear-gradient(165deg,rgba(22,26,61,.98),rgba(8,12,28,.98))!important; border-left:1px solid rgba(112,241,205,.3)!important; }
+.enter-vr { background:linear-gradient(90deg,#6257ff,#ff5c8a)!important; border:0!important; border-radius:999px!important; box-shadow:0 12px 42px rgba(98,87,255,.45)!important; }
 .hub header {
   padding: 10px 4px;
 }

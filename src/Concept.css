@@ -53,6 +53,33 @@
   background: #070b1594;
   backdrop-filter: blur(2px);
 }
+
+/* DAVESPACE Prism — bright social-first identity */
+:root {
+  --violet: #7657ff;
+  --aqua: #45f0d0;
+  --pink: #ff4fa3;
+}
+.hub { background:
+  radial-gradient(circle at 78% 4%, rgba(118,87,255,.3), transparent 34%),
+  radial-gradient(circle at 30% 100%, rgba(69,240,208,.12), transparent 35%), #070818; }
+.hub > aside { background: linear-gradient(180deg,rgba(20,17,53,.97),rgba(7,12,27,.98)); border-right:1px solid rgba(140,121,255,.28); }
+.hub > aside button.active { background:linear-gradient(100deg,var(--violet),#5947e8); box-shadow:0 10px 32px rgba(104,78,255,.35); }
+.hero-card { background:
+  linear-gradient(90deg,rgba(10,12,38,.3),rgba(10,12,38,.05)),
+  url('/davespace/vrspace-lounge.png') center/cover; border-color:rgba(135,113,255,.5); box-shadow:0 30px 90px rgba(0,0,0,.45); }
+.hero-card button:first-of-type,.creator > button,.section-title button { background:linear-gradient(100deg,var(--violet),#a549f4); box-shadow:0 8px 28px rgba(118,87,255,.3); }
+.status i { background:var(--aqua); box-shadow:0 0 16px var(--aqua); }
+.world-grid article,.page-card { background:linear-gradient(145deg,rgba(22,24,55,.94),rgba(9,13,29,.96)); border-color:rgba(133,119,221,.24); }
+.world-grid article:hover { transform:translateY(-6px); border-color:var(--violet); box-shadow:0 18px 50px rgba(41,25,102,.4); }
+.event-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:24px; }
+.event-grid article { min-height:190px; padding:24px; border-radius:22px; background:linear-gradient(145deg,rgba(121,78,255,.25),rgba(31,25,72,.55)); border:1px solid rgba(139,116,255,.34); }
+.event-grid b { color:var(--aqua); font-size:12px; letter-spacing:.12em; }
+.event-grid h3 { margin:18px 0 8px; font-size:22px; }
+.event-grid p { color:#aeb4d5; min-height:42px; }
+.event-grid button { border:0; border-radius:12px; padding:11px 15px; color:white; background:linear-gradient(90deg,var(--violet),var(--pink)); font-weight:800; }
+.toast { background:linear-gradient(100deg,#29205f,#141a36)!important; border:1px solid #8c73ff!important; box-shadow:0 15px 50px rgba(40,20,100,.55)!important; }
+@media(max-width:850px){.event-grid{grid-template-columns:1fr}.events-page{padding:18px}}
 .hub header {
   padding: 10px 4px;
 }

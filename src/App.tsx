@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Box,
+  CalendarDays,
   Compass,
   Headphones,
   MessageCircle,
@@ -21,8 +22,8 @@ import "./Mobile.css";
 import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
-type Tab = "discover" | "social" | "worlds" | "create" | "settings";
-const BUILD_ID = "2026-08-30-jump-fingers-6";
+type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
+const BUILD_ID = "2026-08-30-human-rig-xr-menu-7";
 const worlds: {
   id: WorldId;
   name: string;
@@ -108,8 +109,11 @@ export default function App() {
     }
   }, [toast]);
   useEffect(() => {
-    const receive = (event: Event) =>
-      setChat((current) => [...current, (event as CustomEvent<string>).detail]);
+    const receive = (event: Event) => {
+      const message = (event as CustomEvent<string>).detail;
+      setChat((current) => [...current, message]);
+      setToast(`New message · ${message.slice(0, 52)}`);
+    };
     window.addEventListener("vrspace-chat", receive);
     return () => window.removeEventListener("vrspace-chat", receive);
   }, []);
@@ -335,8 +339,8 @@ export default function App() {
           />
           <strong>DAVESPACE</strong>
         </div>
-        {(["discover", "social", "worlds", "create"] as Tab[]).map((t, i) => {
-          const I = [Compass, Users, Box, Waypoints][i];
+        {(["discover", "worlds", "events", "social", "create"] as Tab[]).map((t, i) => {
+          const I = [Compass, Box, CalendarDays, Users, Waypoints][i];
           return (
             <button
               key={t}
@@ -402,6 +406,7 @@ export default function App() {
             <WorldCards join={join} />
           </section>
         )}
+        {tab === "events" && <Events join={join} />}
         {tab === "social" && (
           <div className="social-page">
             <section className="page-card">
@@ -526,6 +531,19 @@ function Friends({ data, add }: { data: string[][]; add: () => void }) {
       ))}
     </>
   );
+}
+function Events({ join }: { join: (id: WorldId) => void }) {
+  const events: [string, string, string, WorldId][] = [
+    ["Tonight · 20:00", "Fireside Film Club", "Community cinema and voice hangout", "fireside"],
+    ["Friday · 21:30", "Neon Pulse Live", "Reactive-light rooftop dance session", "neon"],
+    ["Saturday · 18:00", "Build Jam", "Make a shared mini-world in 45 minutes", "studio"],
+  ];
+  return <section className="page-card events-page">
+    <small>LIVE & UPCOMING</small><h2>Community events</h2>
+    <div className="event-grid">{events.map(([when, title, detail, id]) =>
+      <article key={title}><b>{when}</b><h3>{title}</h3><p>{detail}</p><button onClick={() => join(id)}>JOIN EVENT</button></article>
+    )}</div>
+  </section>;
 }
 function Chat({
   chat,

@@ -92,7 +92,7 @@ export default function WorldScene({
     const remoteNames = new Map<string, string>();
     let avatarTemplate: THREE.Object3D | null = null;
     new GLTFLoader().load(
-      `${import.meta.env.BASE_URL}avatars/RobotExpressive.glb`,
+      `${import.meta.env.BASE_URL}avatars/quaternius/human.glb`,
       (gltf) => {
         avatarTemplate = gltf.scene;
         for (const [peerId, old] of remoteAvatars) {
@@ -138,11 +138,17 @@ export default function WorldScene({
     poseAction.onMessage = (pose, { peerId }) => {
       const avatar = ensurePeer(peerId);
       avatar.position.fromArray(pose.p);
-      avatar.quaternion.fromArray(pose.q);
+      const headRotation = new THREE.Euler().setFromQuaternion(
+        new THREE.Quaternion().fromArray(pose.q),
+        "YXZ",
+      );
+      avatar.rotation.set(0, headRotation.y, 0);
       const left = avatar.getObjectByName("left-hand");
       const right = avatar.getObjectByName("right-hand");
-      if (left) left.position.fromArray(pose.l).sub(avatar.position);
-      if (right) right.position.fromArray(pose.r).sub(avatar.position);
+      if (left) left.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.l)));
+      if (right) right.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.r)));
+      updateAvatarLimb(avatar, "left-arm", new THREE.Vector3(-0.2, -0.22, 0), left?.position);
+      updateAvatarLimb(avatar, "right-arm", new THREE.Vector3(0.2, -0.22, 0), right?.position);
     };
     chatAction.onMessage = (message) => {
       window.dispatchEvent(
@@ -190,7 +196,7 @@ export default function WorldScene({
     window.addEventListener("davespace-audio-stream", changeAudioStream);
     const body = makeBody();
     camera.add(body);
-    const xrMenu = makeXRMenu();
+    const xrMenu = makeXRMenu(playerName);
     xrMenu.visible = false;
     scene.add(xrMenu);
     const toggleXRMenu = () => {
@@ -268,6 +274,13 @@ export default function WorldScene({
               window.dispatchEvent(new Event("vrspace-enable-audio"));
             if (action === "social")
               window.dispatchEvent(new Event("vrspace-toggle-menu"));
+            if (action === "worlds")
+              window.dispatchEvent(new Event("vrspace-toggle-menu"));
+            if (action === "messages")
+              window.dispatchEvent(new Event("vrspace-toggle-menu"));
+            if (action === "spawn-cube") spawnTool("cube", scene, grab);
+            if (action === "spawn-pen") spawnTool("pen", scene, grab);
+            if (action === "spawn-target") spawnTool("target", scene, grab);
             if (action === "leave") onExit();
             if (action === "close") xrMenu.visible = false;
             return;
@@ -725,8 +738,12 @@ function makeRemoteAvatar(
   torso.position.y = -0.48;
   if (template) {
     const model = cloneSkeleton(template);
-    model.scale.setScalar(0.58);
-    model.position.y = -1.62;
+    const initialBox = new THREE.Box3().setFromObject(model);
+    const height = initialBox.getSize(new THREE.Vector3()).y || 1;
+    model.scale.setScalar(1.68 / height);
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    model.position.y = -0.12 - box.max.y;
     model.rotation.y = Math.PI;
     model.traverse((part) => {
       if ((part as THREE.Mesh).isMesh) {
@@ -742,10 +759,16 @@ function makeRemoteAvatar(
     ["left-hand", -0.35],
     ["right-hand", 0.35],
   ] as const) {
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skin);
+    const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.11, 5, 10), skin);
     hand.name = side;
     hand.position.set(x, -0.25, -0.15);
     group.add(hand);
+  }
+  for (const [name, x] of [["left-arm", -0.2], ["right-arm", 0.2]] as const) {
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.5, 5, 10), cloth);
+    arm.name = name;
+    arm.position.set(x, -0.45, 0);
+    group.add(arm);
   }
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -792,39 +815,52 @@ function curlControllerHand(
     part.quaternion.slerp(base.multiply(curl), 0.35);
   });
 }
-function makeXRMenu() {
+function makeXRMenu(playerName: string) {
   const group = new THREE.Group();
   const panel = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.05, 0.78),
+    new THREE.PlaneGeometry(1.5, 1.02),
     new THREE.MeshBasicMaterial({
-      color: 0x07131b,
+      color: 0x090b22,
       transparent: true,
       opacity: 0.94,
       side: THREE.DoubleSide,
     }),
   );
   group.add(panel);
-  const title = textSprite("DAVESPACE", "#70f1bd", 0.32, 0.07);
-  title.position.set(0, 0.29, 0.01);
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.54, 1.06),
+    new THREE.MeshBasicMaterial({ color: 0x774cff, side: THREE.DoubleSide }),
+  );
+  glow.position.z = -0.006;
+  group.add(glow);
+  const title = textSprite("DAVESPACE  /  QUICK MENU", "#ffffff", 0.72, 0.09);
+  title.position.set(-0.32, 0.41, 0.02);
   group.add(title);
+  const identity = textSprite(`${playerName.toUpperCase()}  •  ONLINE`, "#72ffd0", 0.46, 0.055);
+  identity.position.set(0.46, 0.41, 0.02);
+  group.add(identity);
   (
     [
-      ["voice", "ENABLE VOICE"],
-      ["social", "SOCIAL"],
-      ["leave", "LEAVE"],
-      ["close", "CLOSE"],
+      ["worlds", "◈  WORLDS"],
+      ["social", "◎  FRIENDS"],
+      ["messages", "✦  MESSAGES"],
+      ["voice", "◉  VOICE"],
+      ["spawn-pen", "✎  SPAWN PEN"],
+      ["spawn-cube", "⬡  SPAWN PROP"],
+      ["spawn-target", "◎  TARGET GAME"],
+      ["leave", "↗  LEAVE WORLD"],
     ] as const
   ).forEach(([action, label], index) => {
     const button = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.42, 0.15),
+      new THREE.PlaneGeometry(0.62, 0.145),
       new THREE.MeshBasicMaterial({
-        color: action === "leave" ? 0x54242b : 0x15382f,
+        color: action === "leave" ? 0x602445 : index < 4 ? 0x27205d : 0x123f52,
         side: THREE.DoubleSide,
       }),
     );
     button.position.set(
-      index % 2 ? 0.24 : -0.24,
-      0.1 - Math.floor(index / 2) * 0.2,
+      index % 2 ? 0.34 : -0.34,
+      0.22 - Math.floor(index / 2) * 0.18,
       0.012,
     );
     button.userData.action = action;
@@ -832,7 +868,7 @@ function makeXRMenu() {
     const text = textSprite(
       label,
       action === "leave" ? "#ff9ba3" : "#eafff7",
-      0.35,
+      0.5,
       0.055,
     );
     text.position.copy(button.position);
@@ -840,6 +876,35 @@ function makeXRMenu() {
     group.add(text);
   });
   return group;
+}
+
+function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {
+  const geometry = kind === "pen"
+    ? new THREE.CylinderGeometry(0.025, 0.025, 0.48, 10)
+    : kind === "target"
+      ? new THREE.TorusGeometry(0.42, 0.08, 10, 28)
+      : new THREE.BoxGeometry(0.42, 0.42, 0.42);
+  const object = new THREE.Mesh(geometry, M(kind === "pen" ? 0xffd45b : kind === "target" ? 0xff4fa3 : 0x6f7cff, 0.45));
+  object.position.set((Math.random() - 0.5) * 1.2, 1.25, -2.2);
+  object.castShadow = true;
+  object.userData.tool = kind;
+  scene.add(object);
+  grab.push(object);
+}
+
+function updateAvatarLimb(
+  avatar: THREE.Group,
+  name: string,
+  shoulder: THREE.Vector3,
+  hand?: THREE.Vector3,
+) {
+  const limb = avatar.getObjectByName(name) as THREE.Mesh | undefined;
+  if (!limb || !hand) return;
+  const direction = hand.clone().sub(shoulder);
+  const length = Math.max(0.12, direction.length());
+  limb.position.copy(shoulder).addScaledVector(direction, 0.5);
+  limb.scale.set(1, length / 0.6, 1);
+  limb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
 }
 function textSprite(
   text: string,

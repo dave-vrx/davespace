@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@trystero-p2p/mqtt": "^0.25.4",
     "@types/three": "^0.185.4",
     "@webxr-input-profiles/assets": "^1.0.20",
     "lucide-react": "^1.37.0",

@@ -22,7 +22,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
-const BUILD_ID = "2026-08-30-concept-hands-5";
+const BUILD_ID = "2026-08-30-jump-fingers-6";
 const worlds: {
   id: WorldId;
   name: string;

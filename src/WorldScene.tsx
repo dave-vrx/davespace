@@ -4,7 +4,7 @@ import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
 import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { joinRoom, selfId } from "@trystero-p2p/mqtt";
+import { joinRoom, selfId } from "trystero";
 export type WorldId = "fireside" | "neon" | "garden" | "studio";
 const M = (c: number, e = 0) =>
   new THREE.MeshStandardMaterial({
@@ -203,6 +203,7 @@ export default function WorldScene({
       ray = new THREE.Raycaster();
     let held: THREE.Mesh | null = null,
       parent: THREE.Object3D | null = null;
+    const controllerHandModels: (THREE.Object3D | null)[] = [null, null];
     controllers.forEach((c, i) => {
       // Controllers must share the locomotion rig or hands stay behind when moving.
       rig.add(c);
@@ -216,6 +217,9 @@ export default function WorldScene({
           model.rotation.set(-Math.PI / 2, i ? Math.PI / 2 : -Math.PI / 2, 0);
           model.position.set(i ? 0.025 : -0.025, -0.035, -0.055);
           model.traverse((part) => {
+            if ((part as THREE.Bone).isBone) {
+              part.userData.openQuaternion = part.quaternion.clone();
+            }
             if ((part as THREE.Mesh).isMesh) {
               const mesh = part as THREE.Mesh;
               mesh.castShadow = true;
@@ -229,6 +233,7 @@ export default function WorldScene({
             }
           });
           controllerHand.add(model);
+          controllerHandModels[i] = model;
         },
       );
       c.addEventListener("connected", (event) => {
@@ -288,7 +293,9 @@ export default function WorldScene({
       pitch = 0,
       drag = false,
       lastX = 0,
-      lastY = 0;
+      lastY = 0,
+      verticalVelocity = 0,
+      jumpWasPressed = false;
     renderer.domElement.tabIndex = 0;
     renderer.domElement.focus();
     const kd = (e: KeyboardEvent) => {
@@ -394,6 +401,7 @@ export default function WorldScene({
           (mobile.has("left") ? 1 : 0);
       if (renderer.xr.isPresenting) {
         let yPressed = false;
+        let jumpPressed = false;
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
           if (source.handedness === "left") {
@@ -402,6 +410,20 @@ export default function WorldScene({
               buttons[3]?.pressed || buttons[4]?.pressed || buttons[5]?.pressed,
             );
           }
+          if (source.handedness === "right") {
+            const buttons = source.gamepad?.buttons ?? [];
+            jumpPressed = Boolean(buttons[4]?.pressed || buttons[3]?.pressed);
+          }
+          const handIndex = source.handedness === "right" ? 1 : 0;
+          const grip = Math.max(
+            source.gamepad?.buttons[0]?.value ?? 0,
+            source.gamepad?.buttons[1]?.value ?? 0,
+          );
+          curlControllerHand(
+            controllerHandModels[handIndex],
+            grip,
+            source.handedness === "right",
+          );
           if (axes && axes.length >= 2) {
             const x = axes[axes.length - 2],
               y = axes[axes.length - 1];
@@ -417,6 +439,9 @@ export default function WorldScene({
         }
         if (yPressed && !yWasPressed) toggleXRMenu();
         yWasPressed = yPressed;
+        if (jumpPressed && !jumpWasPressed && rig.position.y <= 0.001)
+          verticalVelocity = 5.4;
+        jumpWasPressed = jumpPressed;
         rig.rotation.y = yaw;
       } else {
         rig.rotation.y = 0;
@@ -427,6 +452,18 @@ export default function WorldScene({
           (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
       if (forward) rig.position.addScaledVector(f, forward * speed);
       if (side) rig.position.addScaledVector(r, side * speed);
+      if (keys.has("Space") && !jumpWasPressed && rig.position.y <= 0.001) {
+        verticalVelocity = 5.4;
+        jumpWasPressed = true;
+      }
+      if (!keys.has("Space") && !renderer.xr.isPresenting)
+        jumpWasPressed = false;
+      verticalVelocity -= 13.5 * dt;
+      rig.position.y += verticalVelocity * dt;
+      if (rig.position.y < 0) {
+        rig.position.y = 0;
+        verticalVelocity = 0;
+      }
       if (t - lastPose > 0.05) {
         const head = renderer.xr.isPresenting
           ? renderer.xr.getCamera()
@@ -720,6 +757,27 @@ function makeRemoteAvatar(
   label.scale.set(1.8, 0.45, 1);
   group.add(label);
   return group;
+}
+function curlControllerHand(
+  model: THREE.Object3D | null,
+  amount: number,
+  right: boolean,
+) {
+  if (!model) return;
+  model.traverse((part) => {
+    if (!(part as THREE.Bone).isBone || !part.userData.openQuaternion) return;
+    const name = part.name.toLowerCase();
+    if (!/(thumb|index|middle|ring|little|pinky)/.test(name)) return;
+    const base = (part.userData.openQuaternion as THREE.Quaternion).clone();
+    const curl = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        0,
+        0,
+        (right ? -1 : 1) * amount * (name.includes("thumb") ? 0.55 : 1.15),
+      ),
+    );
+    part.quaternion.slerp(base.multiply(curl), 0.35);
+  });
 }
 function makeXRMenu() {
   const group = new THREE.Group();

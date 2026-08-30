@@ -24,7 +24,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-30-avatar-portals-weather-12";
+const BUILD_ID = "2026-08-30-avatar-portals-weather-13";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },

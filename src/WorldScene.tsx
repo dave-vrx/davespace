@@ -98,6 +98,7 @@ export default function WorldScene({
     const avatarAction = room.makeAction<string>("avatar");
     const chatAction = room.makeAction<string>("chat");
     const browserAction = room.makeAction<string>("browser");
+    const placeAction = room.makeAction<{ kind: "portal"; p: number[] }>("place");
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
     const remoteAvatarIds = new Map<string, string>();
@@ -259,6 +260,14 @@ export default function WorldScene({
       grips = [renderer.xr.getControllerGrip(0), renderer.xr.getControllerGrip(1)],
       ray = new THREE.Raycaster();
     const portals: THREE.Mesh[] = [];
+    placeAction.onMessage = (placed) => {
+      if (placed.kind === "portal") {
+        const portal = spawnTool("portal", scene, grab);
+        portal.position.fromArray(placed.p);
+        portals.push(portal);
+        showHUDNotice(camera, "A friend dropped a portal", "#72ffd0");
+      }
+    };
     let held: THREE.Mesh | null = null,
       parent: THREE.Object3D | null = null;
     const controllerHandModels: (THREE.Object3D | null)[] = [null, null];
@@ -336,7 +345,11 @@ export default function WorldScene({
             if (action === "spawn-cube") spawnTool("cube", scene, grab);
             if (action === "spawn-pen") spawnTool("pen", scene, grab);
             if (action === "spawn-target") spawnTool("target", scene, grab);
-            if (action === "spawn-portal") portals.push(spawnTool("portal", scene, grab));
+            if (action === "spawn-portal") {
+              const portal = spawnTool("portal", scene, grab);
+              portals.push(portal);
+              placeAction.send({ kind: "portal", p: portal.position.toArray() });
+            }
             if (action === "leave") onExit();
             if (action === "close") xrMenu.visible = false;
             return;

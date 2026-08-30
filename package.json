@@ -1,5 +1,5 @@
 {
-  "name": "davespace-webxr-social",
+  "name": "vrspace",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,7 +14,8 @@
     "lucide-react": "^1.37.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

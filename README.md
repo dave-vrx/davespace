@@ -1,4 +1,16 @@
-# React + TypeScript + Vite
+# VRSpace
+
+Open, cross-platform WebXR social worlds hosted on GitHub Pages. VRSpace uses Three.js/WebXR for rendering and Trystero/WebRTC for encrypted peer-to-peer presence, avatar pose synchronization, room chat, and voice.
+
+## Unity world exporter contract
+
+Native Unity AssetBundles cannot execute in a browser. A future Unity editor plugin should export a web-compatible `world.json` plus glTF/GLB assets:
+
+```json
+{"format":"vrspace-world","version":1,"id":"my-world","name":"My World","scene":"scene.glb","spawn":[0,1.7,0],"assets":[]}
+```
+
+The stable TypeScript contract and loader live in `src/world-package.ts`. Exported packages can be committed to GitHub and served with the platform without converting the app to Unity WebGL.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 

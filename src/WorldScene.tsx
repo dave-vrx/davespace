@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
+import { joinRoom } from "trystero";
 export type WorldId = "fireside" | "neon" | "garden" | "studio";
 const M = (c: number, e = 0) =>
   new THREE.MeshStandardMaterial({
@@ -11,9 +12,13 @@ const M = (c: number, e = 0) =>
   });
 export default function WorldScene({
   world,
+  playerName,
+  audioStream,
   onExit,
 }: {
   world: WorldId;
+  playerName: string;
+  audioStream: MediaStream | null;
   onExit: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -61,6 +66,84 @@ export default function WorldScene({
     const animated: THREE.Object3D[] = [],
       grab: THREE.Mesh[] = [];
     build(world, scene, animated, grab);
+    addAtmosphere(scene, world);
+    const room = joinRoom(
+      { appId: "vrspace-webxr-social-v1" },
+      `public-${world}`,
+    );
+    const poseAction = room.makeAction<{
+      p: number[];
+      q: number[];
+      l: number[];
+      r: number[];
+    }>("pose");
+    const nameAction = room.makeAction<string>("name");
+    const chatAction = room.makeAction<string>("chat");
+    const remoteAvatars = new Map<string, THREE.Group>();
+    const remoteNames = new Map<string, string>();
+    const peerAudio = new Map<string, HTMLAudioElement>();
+    const publishPresence = () =>
+      window.dispatchEvent(
+        new CustomEvent("vrspace-presence", { detail: remoteAvatars.size + 1 }),
+      );
+    const ensurePeer = (peerId: string) => {
+      let avatar = remoteAvatars.get(peerId);
+      if (!avatar) {
+        avatar = makeRemoteAvatar(remoteNames.get(peerId) ?? "Guest");
+        remoteAvatars.set(peerId, avatar);
+        scene.add(avatar);
+      }
+      return avatar;
+    };
+    nameAction.onMessage = (peerName, { peerId }) => {
+      remoteNames.set(peerId, peerName);
+      const old = remoteAvatars.get(peerId);
+      if (old) scene.remove(old);
+      remoteAvatars.delete(peerId);
+      ensurePeer(peerId);
+    };
+    poseAction.onMessage = (pose, { peerId }) => {
+      const avatar = ensurePeer(peerId);
+      avatar.position.fromArray(pose.p);
+      avatar.quaternion.fromArray(pose.q);
+      const left = avatar.getObjectByName("left-hand");
+      const right = avatar.getObjectByName("right-hand");
+      if (left) left.position.fromArray(pose.l).sub(avatar.position);
+      if (right) right.position.fromArray(pose.r).sub(avatar.position);
+    };
+    chatAction.onMessage = (message) => {
+      window.dispatchEvent(
+        new CustomEvent("vrspace-chat", { detail: message }),
+      );
+    };
+    const sendChat = (event: Event) =>
+      chatAction.send((event as CustomEvent<string>).detail);
+    window.addEventListener("vrspace-send-chat", sendChat);
+    room.onPeerJoin = (peerId) => {
+      ensurePeer(peerId);
+      publishPresence();
+      nameAction.send(playerName, { target: peerId });
+      if (audioStream) room.addStream(audioStream, { target: peerId });
+    };
+    room.onPeerLeave = (peerId) => {
+      const avatar = remoteAvatars.get(peerId);
+      if (avatar) scene.remove(avatar);
+      remoteAvatars.delete(peerId);
+      publishPresence();
+      peerAudio.get(peerId)?.remove();
+      peerAudio.delete(peerId);
+    };
+    room.onPeerStream = (stream, peerId) => {
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audio.volume = 1;
+      document.body.appendChild(audio);
+      void audio.play().catch(() => undefined);
+      peerAudio.set(peerId, audio);
+    };
+    nameAction.send(playerName);
+    if (audioStream) room.addStream(audioStream);
     const body = makeBody();
     camera.add(body);
     const controllers = [
@@ -178,6 +261,11 @@ export default function WorldScene({
     ro.observe(root);
     resize();
     const clock = new THREE.Clock();
+    let lastPose = 0;
+    const headPosition = new THREE.Vector3(),
+      headQuaternion = new THREE.Quaternion();
+    const leftPosition = new THREE.Vector3(),
+      rightPosition = new THREE.Vector3();
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.05),
         t = clock.elapsedTime;
@@ -217,6 +305,22 @@ export default function WorldScene({
           (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
       if (forward) rig.position.addScaledVector(f, forward * speed);
       if (side) rig.position.addScaledVector(r, side * speed);
+      if (t - lastPose > 0.05) {
+        const head = renderer.xr.isPresenting
+          ? renderer.xr.getCamera()
+          : camera;
+        head.getWorldPosition(headPosition);
+        head.getWorldQuaternion(headQuaternion);
+        controllers[0].getWorldPosition(leftPosition);
+        controllers[1].getWorldPosition(rightPosition);
+        poseAction.send({
+          p: headPosition.toArray(),
+          q: headQuaternion.toArray(),
+          l: leftPosition.toArray(),
+          r: rightPosition.toArray(),
+        });
+        lastPose = t;
+      }
       animated.forEach((o, i) => {
         o.rotation.y += dt * (i % 2 ? 0.5 : -0.5);
         o.position.y +=
@@ -231,10 +335,13 @@ export default function WorldScene({
       removeEventListener("keyup", ku);
       removeEventListener("mousemove", look);
       removeEventListener("pointerup", up);
+      window.removeEventListener("vrspace-send-chat", sendChat);
+      room.leave();
+      peerAudio.forEach((audio) => audio.remove());
       renderer.dispose();
       root.replaceChildren();
     };
-  }, [world, onExit]);
+  }, [world, playerName, audioStream, onExit]);
   return <div className="world-scene" ref={host} />;
 }
 function build(
@@ -369,6 +476,38 @@ function build(
     screen(s);
   }
 }
+function addAtmosphere(scene: THREE.Scene, world: WorldId) {
+  const count = 900,
+    positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const radius = 4 + Math.random() * 27,
+      angle = Math.random() * Math.PI * 2;
+    positions[i * 3] = Math.cos(angle) * radius;
+    positions[i * 3 + 1] = 0.4 + Math.random() * 13;
+    positions[i * 3 + 2] = Math.sin(angle) * radius - 4;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const color =
+    world === "fireside"
+      ? 0xffb86b
+      : world === "neon"
+        ? 0x8b5cff
+        : world === "garden"
+          ? 0x70f1bd
+          : 0x38bdf8;
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { pointColor: { value: new THREE.Color(color) } },
+    vertexShader:
+      "void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_PointSize=18./-p.z;gl_Position=projectionMatrix*p;}",
+    fragmentShader:
+      "uniform vec3 pointColor;void main(){float d=length(gl_PointCoord-.5);float a=smoothstep(.5,0.,d);gl_FragColor=vec4(pointColor,a*.65);}",
+  });
+  scene.add(new THREE.Points(geometry, material));
+}
 function screen(s: THREE.Scene) {
   const f = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.2), M(0x101b28));
   f.position.set(0, 2.5, -9);
@@ -395,6 +534,50 @@ function makeHand(side: string) {
   }
   g.scale.x = side === "left" ? -1 : 1;
   return g;
+}
+function makeRemoteAvatar(name: string) {
+  const group = new THREE.Group();
+  const skin = M(0xd5a17d),
+    cloth = M(0x536fff, 0.08);
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18, 2), skin);
+  const torso = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.2, 0.42, 5, 10),
+    cloth,
+  );
+  torso.position.y = -0.48;
+  group.add(head, torso);
+  for (const [side, x] of [
+    ["left-hand", -0.35],
+    ["right-hand", 0.35],
+  ] as const) {
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skin);
+    hand.name = side;
+    hand.position.set(x, -0.25, -0.15);
+    group.add(hand);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 128;
+  const context = canvas.getContext("2d")!;
+  context.fillStyle = "rgba(4,12,18,.82)";
+  context.roundRect(8, 8, 496, 112, 34);
+  context.fill();
+  context.font = "700 48px system-ui";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#70f1bd";
+  context.fillText(name.slice(0, 20), 256, 66);
+  const label = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(canvas),
+      transparent: true,
+      depthTest: false,
+    }),
+  );
+  label.position.y = 0.5;
+  label.scale.set(1.8, 0.45, 1);
+  group.add(label);
+  return group;
 }
 function makeBody() {
   const g = new THREE.Group(),

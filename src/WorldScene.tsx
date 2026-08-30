@@ -211,12 +211,15 @@ export default function WorldScene({
     window.addEventListener("vrspace-enable-audio", unlockAudio);
     nameAction.send(playerName);
     let sharedAudioStream = audioStream;
+    const micHUD = makeMicHUD(!sharedAudioStream);
+    camera.add(micHUD);
     if (sharedAudioStream) room.addStream(sharedAudioStream);
     const changeAudioStream = (event: Event) => {
       const next = (event as CustomEvent<MediaStream | null>).detail;
       if (sharedAudioStream) room.removeStream(sharedAudioStream);
       sharedAudioStream = next;
       if (sharedAudioStream) room.addStream(sharedAudioStream);
+      updateMicHUD(micHUD, !sharedAudioStream);
     };
     window.addEventListener("davespace-audio-stream", changeAudioStream);
     const body = makeBody();
@@ -225,15 +228,18 @@ export default function WorldScene({
     xrMenu.visible = false;
     scene.add(xrMenu);
     const toggleXRMenu = () => {
+      if (!renderer.xr.isPresenting) {
+        window.dispatchEvent(new Event("vrspace-toggle-menu"));
+        return;
+      }
       xrMenu.visible = !xrMenu.visible;
       if (xrMenu.visible) {
-        const view = renderer.xr.isPresenting
-          ? renderer.xr.getCamera()
-          : camera;
-        view.getWorldPosition(xrMenu.position);
-        view.getWorldQuaternion(xrMenu.quaternion);
-        xrMenu.translateZ(-1.18);
-        xrMenu.translateY(-0.05);
+        const head = new THREE.Vector3();
+        renderer.xr.getCamera().getWorldPosition(head);
+        grips[0].getWorldPosition(xrMenu.position);
+        xrMenu.position.add(new THREE.Vector3(0, 0.28, -0.12).applyQuaternion(rig.quaternion));
+        xrMenu.lookAt(head);
+        xrMenu.scale.setScalar(0.68);
       }
     };
     const controllers = [
@@ -370,7 +376,7 @@ export default function WorldScene({
           e.preventDefault();
         keys.add(e.code);
         if (e.code === "KeyM") toggleXRMenu();
-        if (e.code === "Escape") onExit();
+        if (e.code === "Escape") toggleXRMenu();
       },
       ku = (e: KeyboardEvent) => keys.delete(e.code),
       look = (e: MouseEvent) => {
@@ -1013,6 +1019,45 @@ function showHUDNotice(camera: THREE.Camera, message: string, color: string) {
   notice.renderOrder = 999;
   camera.add(notice);
   window.setTimeout(() => notice.removeFromParent(), 3800);
+}
+
+function makeMicHUD(muted: boolean) {
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: makeMicTexture(muted),
+      transparent: true,
+      opacity: 0.5,
+      depthTest: false,
+    }),
+  );
+  sprite.name = "microphone-status";
+  sprite.position.set(-0.42, -0.27, -1);
+  sprite.scale.set(0.09, 0.09, 1);
+  sprite.renderOrder = 1000;
+  return sprite;
+}
+
+function updateMicHUD(sprite: THREE.Sprite, muted: boolean) {
+  const material = sprite.material as THREE.SpriteMaterial;
+  material.map?.dispose();
+  material.map = makeMicTexture(muted);
+  material.needsUpdate = true;
+}
+
+function makeMicTexture(muted: boolean) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = muted ? "#ef334f" : "#ffffff";
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.roundRect(48, 22, 32, 55, 16); ctx.fill();
+  ctx.beginPath(); ctx.arc(64, 62, 31, 0, Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(64, 93); ctx.lineTo(64, 109); ctx.moveTo(45, 109); ctx.lineTo(83, 109); ctx.stroke();
+  if (muted) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(28, 25); ctx.lineTo(101, 103); ctx.stroke(); }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {

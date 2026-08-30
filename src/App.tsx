@@ -23,7 +23,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
-const BUILD_ID = "2026-08-30-nova-rig-worlds-10";
+const BUILD_ID = "2026-08-30-hand-menu-mic-11";
 const worlds: {
   id: WorldId;
   name: string;
@@ -259,6 +259,9 @@ export default function App() {
           audioStream={stream}
           onExit={exit}
         />
+        <div className={`mic-overlay ${mic ? "open" : "muted"}`} title={mic ? "Microphone on" : "Microphone muted"}>
+          {mic ? <Mic /> : <MicOff />}
+        </div>
         <div className="world-top">
           <img src={`${import.meta.env.BASE_URL}logo.svg`} />
           <span>

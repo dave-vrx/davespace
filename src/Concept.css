@@ -101,6 +101,13 @@
 .world-controls { border-radius:20px!important; }
 .social-panel { background:linear-gradient(165deg,rgba(22,26,61,.98),rgba(8,12,28,.98))!important; border-left:1px solid rgba(112,241,205,.3)!important; }
 .enter-vr { background:linear-gradient(90deg,#6257ff,#ff5c8a)!important; border:0!important; border-radius:999px!important; box-shadow:0 12px 42px rgba(98,87,255,.45)!important; }
+.mic-overlay { position:fixed; z-index:12; left:50%; bottom:108px; width:42px; height:42px; transform:translateX(-50%); display:grid; place-items:center; border-radius:50%; opacity:.5; pointer-events:none; backdrop-filter:blur(10px); }
+.mic-overlay svg { width:22px; height:22px; }
+.mic-overlay.muted { color:#fff; background:#e52f4e; box-shadow:0 0 22px rgba(229,47,78,.55); }
+.mic-overlay.open { color:#fff; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.5); }
+@media(min-width:761px){
+  .social-panel { left:50%!important; right:auto!important; top:50%!important; bottom:auto!important; width:min(920px,calc(100vw - 80px))!important; max-height:min(720px,calc(100vh - 100px)); transform:translate(-50%,-50%); border-radius:28px!important; box-shadow:0 35px 120px rgba(0,0,0,.72)!important; }
+}
 .hub header {
   padding: 10px 4px;
 }

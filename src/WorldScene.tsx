@@ -16,11 +16,13 @@ const M = (c: number, e = 0) =>
 export default function WorldScene({
   world,
   playerName,
+  avatarId,
   audioStream,
   onExit,
 }: {
   world: WorldId;
   playerName: string;
+  avatarId: string;
   audioStream: MediaStream | null;
   onExit: () => void;
 }) {
@@ -80,6 +82,7 @@ export default function WorldScene({
       grab: THREE.Mesh[] = [];
     build(world, scene, animated, grab);
     addAtmosphere(scene, world);
+    const weather = world === "fireside" ? makeCampfireWeather(scene) : null;
     const room = joinRoom(
       { appId: "vrspace-webxr-social-v1" },
       `public-${world}`,
@@ -92,31 +95,23 @@ export default function WorldScene({
       r: number[];
     }>("pose");
     const nameAction = room.makeAction<string>("name");
+    const avatarAction = room.makeAction<string>("avatar");
     const chatAction = room.makeAction<string>("chat");
     const browserAction = room.makeAction<string>("browser");
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
-    let avatarTemplate: THREE.Object3D | null = null;
-    new GLTFLoader().load(
-      `${import.meta.env.BASE_URL}avatars/quaternius/human.glb`,
-      (gltf) => {
-        avatarTemplate = gltf.scene;
-        for (const [peerId, old] of remoteAvatars) {
-          const position = old.position.clone(),
-            quaternion = old.quaternion.clone();
-          scene.remove(old);
-          remoteAvatars.delete(peerId);
-          const upgraded = makeRemoteAvatar(
-            remoteNames.get(peerId) ?? "Guest",
-            avatarTemplate,
-          );
-          upgraded.position.copy(position);
-          upgraded.quaternion.copy(quaternion);
-          remoteAvatars.set(peerId, upgraded);
-          scene.add(upgraded);
-        }
-      },
-    );
+    const remoteAvatarIds = new Map<string, string>();
+    const avatarTemplates = new Map<string, THREE.Object3D>();
+    const templateKey = (id: string) => id === "striker" ? "striker" : "explorer";
+    const loadTemplate = (id: string, ready?: () => void) => {
+      const key = templateKey(id);
+      if (avatarTemplates.has(key)) return ready?.();
+      const path = key === "striker" ? "avatars/night-striker/avatar.glb" : "avatars/quaternius/human.glb";
+      new GLTFLoader().load(`${import.meta.env.BASE_URL}${path}`, (gltf) => {
+        avatarTemplates.set(key, gltf.scene); ready?.();
+      });
+    };
+    loadTemplate(avatarId);
     const peerAudio = new Map<string, HTMLAudioElement>();
     const publishPresence = () =>
       window.dispatchEvent(
@@ -125,23 +120,36 @@ export default function WorldScene({
     const ensurePeer = (peerId: string) => {
       let avatar = remoteAvatars.get(peerId);
       if (!avatar) {
+        const selected = remoteAvatarIds.get(peerId) ?? "explorer";
         avatar = makeRemoteAvatar(
           remoteNames.get(peerId) ?? "Guest",
-          avatarTemplate,
+          avatarTemplates.get(templateKey(selected)) ?? null,
+          selected,
         );
         remoteAvatars.set(peerId, avatar);
         scene.add(avatar);
       }
       return avatar;
     };
-    nameAction.onMessage = (peerName, { peerId }) => {
-      remoteNames.set(peerId, peerName);
+    const rebuildPeer = (peerId: string) => {
       const old = remoteAvatars.get(peerId);
+      const position = old?.position.clone();
+      const quaternion = old?.quaternion.clone();
       if (old) scene.remove(old);
       remoteAvatars.delete(peerId);
-      ensurePeer(peerId);
+      const next = ensurePeer(peerId);
+      if (position) next.position.copy(position);
+      if (quaternion) next.quaternion.copy(quaternion);
+    };
+    nameAction.onMessage = (peerName, { peerId }) => {
+      remoteNames.set(peerId, peerName);
+      rebuildPeer(peerId);
       showHUDNotice(camera, `${peerName} joined the world`, "#72ffd0");
       window.dispatchEvent(new CustomEvent("davespace-system-notification", { detail: `${peerName} joined the world` }));
+    };
+    avatarAction.onMessage = (selected, { peerId }) => {
+      remoteAvatarIds.set(peerId, selected);
+      loadTemplate(selected, () => rebuildPeer(peerId));
     };
     poseAction.onMessage = (pose, { peerId }) => {
       const avatar = ensurePeer(peerId);
@@ -184,6 +192,7 @@ export default function WorldScene({
       ensurePeer(peerId);
       publishPresence();
       nameAction.send(playerName, { target: peerId });
+      avatarAction.send(avatarId, { target: peerId });
       if (audioStream) room.addStream(audioStream, { target: peerId });
     };
     room.onPeerLeave = (peerId) => {
@@ -210,6 +219,7 @@ export default function WorldScene({
       peerAudio.forEach((audio) => void audio.play().catch(() => undefined));
     window.addEventListener("vrspace-enable-audio", unlockAudio);
     nameAction.send(playerName);
+    avatarAction.send(avatarId);
     let sharedAudioStream = audioStream;
     const micHUD = makeMicHUD(!sharedAudioStream);
     camera.add(micHUD);
@@ -248,6 +258,7 @@ export default function WorldScene({
       ],
       grips = [renderer.xr.getControllerGrip(0), renderer.xr.getControllerGrip(1)],
       ray = new THREE.Raycaster();
+    const portals: THREE.Mesh[] = [];
     let held: THREE.Mesh | null = null,
       parent: THREE.Object3D | null = null;
     const controllerHandModels: (THREE.Object3D | null)[] = [null, null];
@@ -318,9 +329,14 @@ export default function WorldScene({
             }
             if (action === "messages")
               showXRNotice(xrMenu, "MESSAGES", "Open world chat · notifications enabled");
+            if (action === "avatar")
+              showXRNotice(xrMenu, "AVATAR", `Equipped: ${avatarId} · use desktop selector for previews`);
+            if (action === "settings")
+              showXRNotice(xrMenu, "SETTINGS", "Y menu · X mute · comfort turning enabled");
             if (action === "spawn-cube") spawnTool("cube", scene, grab);
             if (action === "spawn-pen") spawnTool("pen", scene, grab);
             if (action === "spawn-target") spawnTool("target", scene, grab);
+            if (action === "spawn-portal") portals.push(spawnTool("portal", scene, grab));
             if (action === "leave") onExit();
             if (action === "close") xrMenu.visible = false;
             return;
@@ -411,8 +427,14 @@ export default function WorldScene({
           );
           const h = ray.intersectObjects(grab)[0];
           if (h) {
-            h.object.position.x += 0.8;
-            if (h.object.position.x > 4) h.object.position.x = -4;
+            if (h.object.userData.npc) {
+              const line = h.object.userData.line as string;
+              showHUDNotice(camera, line, "#72ffd0");
+              speechSynthesis.speak(new SpeechSynthesisUtterance(line));
+            } else {
+              h.object.position.x += 0.8;
+              if (h.object.position.x > 4) h.object.position.x = -4;
+            }
           }
         }
       };
@@ -569,6 +591,15 @@ export default function WorldScene({
         o.position.y +=
           (Math.sin(t * 2 + i) - Math.sin((t - dt) * 2 + i)) * 0.025;
       });
+      weather?.update(t);
+      for (const portal of portals) {
+        portal.rotation.z += dt * .75;
+        if (portal.position.distanceTo(rig.position) < 1.65 && !portal.userData.used) {
+          portal.userData.used = true;
+          const order: WorldId[] = ["fireside", "neon", "garden", "studio", "ocean", "moon", "arcade", "gallery"];
+          window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: order[(order.indexOf(world) + 1) % order.length] }));
+        }
+      }
       renderer.render(scene, camera);
     });
     return () => {
@@ -588,7 +619,7 @@ export default function WorldScene({
       renderer.dispose();
       root.replaceChildren();
     };
-  }, [world, playerName, onExit]);
+  }, [world, playerName, avatarId, onExit]);
   return <div className="world-scene" ref={host} />;
 }
 function build(
@@ -657,6 +688,13 @@ function build(
     }
     const moon = new THREE.Mesh(new THREE.SphereGeometry(1.25, 24, 16), M(0xdde9ff, 1.1));
     moon.position.set(-10, 12, -22); s.add(moon);
+    [[-4, -1, "Ember", "Welcome to Campfire. The weather changes around us."], [4, -2, "Milo", "Try the shared browser or drop a portal from your hand menu."], [0, -6, "Nova", "I am a local guide NPC. Double click me to talk."]].forEach(([x, z, name, line]) => {
+      const npc = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(.2, .7, 5, 10), M(0x6257ff, .16)); body.position.y = .9;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(.18, 14, 10), M(0x17203a, .25)); head.position.y = 1.55; head.userData.npc = true; head.userData.line = line;
+      const label = textSprite(String(name), "#72ffd0", .75, .16); label.position.y = 1.95;
+      npc.add(body, head, label); npc.position.set(Number(x), 0, Number(z)); s.add(npc); g.push(head);
+    });
     screen(s);
   }
   if (w === "neon") {
@@ -790,6 +828,39 @@ function addAtmosphere(scene: THREE.Scene, world: WorldId) {
   });
   scene.add(new THREE.Points(geometry, material));
 }
+function makeCampfireWeather(scene: THREE.Scene) {
+  const count = 520;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - .5) * 34;
+    positions[i * 3 + 1] = Math.random() * 14;
+    positions[i * 3 + 2] = (Math.random() - .5) * 34;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const rain = new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xa9ddff, size: .035, transparent: true, opacity: .58 }));
+  rain.visible = false; scene.add(rain);
+  let nextChange = 18, mode = 0;
+  return { update(time: number) {
+    if (time > nextChange) {
+      mode = (mode + 1 + Math.floor(Math.random() * 2)) % 3;
+      rain.visible = mode === 2;
+      scene.background = new THREE.Color(mode === 0 ? 0x071019 : mode === 1 ? 0x241737 : 0x07131f);
+      if (scene.fog instanceof THREE.FogExp2) scene.fog.density = mode === 2 ? .046 : .024;
+      nextChange = time + 28 + Math.random() * 38;
+      window.dispatchEvent(new CustomEvent("davespace-system-notification", { detail: ["Campfire skies are clear", "Aurora moving overhead", "A rain shower is passing through"][mode] }));
+    }
+    if (rain.visible) {
+      const attr = geometry.getAttribute("position") as THREE.BufferAttribute;
+      for (let i = 0; i < count; i++) {
+        let y = attr.getY(i) - .13;
+        if (y < .1) y = 14;
+        attr.setY(i, y);
+      }
+      attr.needsUpdate = true;
+    }
+  }};
+}
 function screen(s: THREE.Scene) {
   const f = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.2), M(0x101b28));
   f.position.set(0, 2.5, -9);
@@ -804,6 +875,7 @@ function screen(s: THREE.Scene) {
 function makeRemoteAvatar(
   name: string,
   template: THREE.Object3D | null = null,
+  avatarId = "explorer",
 ) {
   const group = new THREE.Group();
   const skin = M(0xd5a17d),
@@ -834,7 +906,13 @@ function makeRemoteAvatar(
     model.rotation.y = Math.PI;
     model.traverse((part) => {
       if ((part as THREE.Mesh).isMesh) {
-        (part as THREE.Mesh).castShadow = true;
+        const mesh = part as THREE.Mesh;
+        mesh.castShadow = true;
+        if (avatarId === "coral" || avatarId === "mint") {
+          const material = (mesh.material as THREE.Material).clone() as THREE.MeshStandardMaterial;
+          if (material.color) material.color.lerp(new THREE.Color(avatarId === "coral" ? 0xff648d : 0x38e0bd), .38);
+          mesh.material = material;
+        }
       }
     });
     group.add(model);
@@ -878,7 +956,12 @@ function makeRemoteAvatar(
   );
   label.position.y = 2.12;
   label.scale.set(1.8, 0.45, 1);
-  group.add(label);
+  const spineAnchor = new THREE.Group();
+  spineAnchor.name = "nameplate-spine-anchor";
+  spineAnchor.position.y = 1.42;
+  label.position.y = 0.7;
+  spineAnchor.add(label);
+  group.add(spineAnchor);
   return group;
 }
 function curlControllerHand(
@@ -906,7 +989,7 @@ function makeXRMenu(playerName: string) {
   const group = new THREE.Group();
   group.name = "davespace-xr-dashboard";
   const panel = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.5, 1.02),
+    new THREE.PlaneGeometry(1.5, 1.32),
     new THREE.MeshBasicMaterial({
       map: makeMenuSurface(playerName),
       transparent: true,
@@ -916,7 +999,7 @@ function makeXRMenu(playerName: string) {
   );
   group.add(panel);
   const glow = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.54, 1.06),
+    new THREE.PlaneGeometry(1.54, 1.36),
     new THREE.MeshBasicMaterial({ color: 0x774cff, side: THREE.DoubleSide }),
   );
   glow.position.z = -0.006;
@@ -929,8 +1012,10 @@ function makeXRMenu(playerName: string) {
       ["voice", "◉  VOICE"],
       ["spawn-pen", "✎  SPAWN PEN"],
       ["spawn-cube", "⬡  SPAWN PROP"],
-      ["spawn-target", "◎  TARGET GAME"],
+      ["spawn-portal", "◉  DROP PORTAL"],
       ["leave", "↗  LEAVE WORLD"],
+      ["avatar", "♙  AVATAR"],
+      ["settings", "⚙  SETTINGS"],
     ] as const
   ).forEach(([action, label], index) => {
     const button = new THREE.Mesh(
@@ -950,7 +1035,7 @@ function makeXRMenu(playerName: string) {
     group.add(button);
   });
   const footer = textSprite("Y  CLOSE     X  MUTE     TRIGGER  SELECT", "#a9b4da", 0.78, 0.045);
-  footer.position.set(0, -0.445, 0.022);
+  footer.position.set(0, -0.59, 0.022);
   group.add(footer);
   return group;
 }
@@ -1060,10 +1145,10 @@ function makeMicTexture(muted: boolean) {
   return texture;
 }
 
-function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {
+function spawnTool(kind: "cube" | "pen" | "target" | "portal", scene: THREE.Scene, grab: THREE.Mesh[]) {
   const geometry = kind === "pen"
     ? new THREE.CylinderGeometry(0.025, 0.025, 0.48, 10)
-    : kind === "target"
+    : kind === "target" || kind === "portal"
       ? new THREE.TorusGeometry(0.42, 0.08, 10, 28)
       : new THREE.BoxGeometry(0.42, 0.42, 0.42);
   const object = new THREE.Mesh(geometry, M(kind === "pen" ? 0xffd45b : kind === "target" ? 0xff4fa3 : 0x6f7cff, 0.45));
@@ -1072,6 +1157,7 @@ function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: TH
   object.userData.tool = kind;
   scene.add(object);
   grab.push(object);
+  return object;
 }
 
 function updateAvatarLimb(

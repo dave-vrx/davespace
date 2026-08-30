@@ -11,6 +11,7 @@ import {
   Send,
   Settings,
   Users,
+  UserRound,
   Volume2,
   Waypoints,
   X,
@@ -22,8 +23,14 @@ import "./Mobile.css";
 import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
-type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
-const BUILD_ID = "2026-08-30-hand-menu-mic-11";
+type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
+const BUILD_ID = "2026-08-30-avatar-portals-weather-12";
+const avatars = [
+  { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
+  { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
+  { id: "coral", name: "Coral Scout", note: "Explorer rig variant", tint: "#ff648d" },
+  { id: "mint", name: "Mint Voyager", note: "Explorer rig variant", tint: "#38e0bd" },
+];
 const worlds: {
   id: WorldId;
   name: string;
@@ -35,7 +42,7 @@ const worlds: {
 }[] = [
   {
     id: "fireside",
-    name: "Fireside Cinema",
+    name: "Campfire",
     tag: "SOCIAL",
     people: 12,
     color: "#f27b42",
@@ -91,7 +98,8 @@ export default function App() {
     [chat, setChat] = useState(["NovaSkye: Meet you by the fire!"]),
     [draft, setDraft] = useState(""),
     [toast, setToast] = useState(""),
-    [online, setOnline] = useState(1);
+    [online, setOnline] = useState(1),
+    [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
   useEffect(() => {
     const url = new URL(location.href);
     if (url.searchParams.get("build") !== BUILD_ID) {
@@ -256,6 +264,7 @@ export default function App() {
         <WorldScene
           world={world}
           playerName={name}
+          avatarId={avatarId}
           audioStream={stream}
           onExit={exit}
         />
@@ -368,8 +377,8 @@ export default function App() {
           />
           <strong>DAVESPACE</strong>
         </div>
-        {(["discover", "worlds", "events", "social", "create"] as Tab[]).map((t, i) => {
-          const I = [Compass, Box, CalendarDays, Users, Waypoints][i];
+        {(["discover", "worlds", "events", "social", "avatar", "create"] as Tab[]).map((t, i) => {
+          const I = [Compass, Box, CalendarDays, Users, UserRound, Waypoints][i];
           return (
             <button
               key={t}
@@ -410,7 +419,7 @@ export default function App() {
             <section className="hero-card">
               <div>
                 <small>EXPLORE · CONNECT · BELONG</small>
-                <h2>Fireside Cinema</h2>
+                <h2>Campfire</h2>
                 <p>
                   A warm social clearing under the stars. Meet friends, watch
                   videos and step into VR.
@@ -436,6 +445,9 @@ export default function App() {
           </section>
         )}
         {tab === "events" && <Events join={join} />}
+        {tab === "avatar" && <AvatarSelector selected={avatarId} select={(id) => {
+          setAvatarId(id); localStorage.setItem("davespace-avatar", id); setToast("Avatar equipped · visible to everyone");
+        }} />}
         {tab === "social" && (
           <div className="social-page">
             <section className="page-card">
@@ -560,6 +572,18 @@ function Friends({ data, add }: { data: string[][]; add: () => void }) {
       ))}
     </>
   );
+}
+function AvatarSelector({ selected, select }: { selected: string; select: (id: string) => void }) {
+  return <section className="page-card avatar-page">
+    <small>CC0 · WEBXR READY</small><h2>Choose your avatar</h2>
+    <p>Only locally bundled, redistributable humanoid rigs are shown.</p>
+    <div className="avatar-grid">{avatars.map((avatar) =>
+      <button key={avatar.id} className={selected === avatar.id ? "selected" : ""} onClick={() => select(avatar.id)} style={{ "--avatar-tint": avatar.tint } as React.CSSProperties}>
+        <div className="avatar-thumb"><img src={`${import.meta.env.BASE_URL}avatars/quaternius/preview.png`} alt={`${avatar.name} rig preview`} /></div>
+        <strong>{avatar.name}</strong><span>{avatar.note}</span><b>{selected === avatar.id ? "EQUIPPED" : "SELECT"}</b>
+      </button>)}</div>
+    <small>Models: Quaternius Universal Base Characters · CC0 1.0</small>
+  </section>;
 }
 function Events({ join }: { join: (id: WorldId) => void }) {
   const events: [string, string, string, WorldId][] = [

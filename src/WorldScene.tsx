@@ -260,6 +260,39 @@ export default function WorldScene({
       grips = [renderer.xr.getControllerGrip(0), renderer.xr.getControllerGrip(1)],
       ray = new THREE.Raycaster();
     const portals: THREE.Mesh[] = [];
+    let comfortMode = false;
+    const menuTargets: THREE.Mesh[] = [];
+    xrMenu.traverse((object) => {
+      if ((object as THREE.Mesh).isMesh && object.userData.action)
+        menuTargets.push(object as THREE.Mesh);
+    });
+    const runMenuAction = (action: string) => {
+      if (action === "voice") window.dispatchEvent(new Event("davespace-toggle-mic"));
+      if (action === "social") showXRNotice(xrMenu, "FRIENDS ONLINE", "NovaSkye · PixelFox · OrbitDave");
+      if (action === "worlds") {
+        const order: WorldId[] = ["fireside", "neon", "garden", "studio", "ocean", "moon", "arcade", "gallery"];
+        window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: order[(order.indexOf(world) + 1) % order.length] }));
+      }
+      if (action === "messages") showXRNotice(xrMenu, "MESSAGES", "NovaSkye: Meet you by the fire!");
+      if (action === "avatar") {
+        window.dispatchEvent(new Event("davespace-cycle-avatar"));
+        showXRNotice(xrMenu, "AVATAR CHANGED", "Your next verified avatar is now equipped");
+      }
+      if (action === "settings") {
+        comfortMode = !comfortMode;
+        showXRNotice(xrMenu, "COMFORT MODE", comfortMode ? "ON · reduced movement speed" : "OFF · full movement speed");
+      }
+      if (action === "spawn-cube") spawnTool("cube", scene, grab);
+      if (action === "spawn-pen") spawnTool("pen", scene, grab);
+      if (action === "spawn-target") spawnTool("target", scene, grab);
+      if (action === "spawn-portal") {
+        const portal = spawnTool("portal", scene, grab);
+        portals.push(portal);
+        placeAction.send({ kind: "portal", p: portal.position.toArray() });
+      }
+      if (action === "leave") onExit();
+      if (action === "close") xrMenu.visible = false;
+    };
     placeAction.onMessage = (placed) => {
       if (placed.kind === "portal") {
         const portal = spawnTool("portal", scene, grab);
@@ -271,6 +304,13 @@ export default function WorldScene({
     let held: THREE.Mesh | null = null,
       parent: THREE.Object3D | null = null;
     const controllerHandModels: (THREE.Object3D | null)[] = [null, null];
+    const cursors = controllers.map(() => {
+      const cursor = new THREE.Mesh(
+        new THREE.RingGeometry(.012, .023, 24),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false }),
+      );
+      cursor.visible = false; cursor.renderOrder = 2000; scene.add(cursor); return cursor;
+    });
     controllers.forEach((c, i) => {
       // Controllers must share the locomotion rig or hands stay behind when moving.
       rig.add(c);
@@ -321,37 +361,10 @@ export default function WorldScene({
       c.addEventListener("selectstart", () => {
         ray.setFromXRController(c);
         if (xrMenu.visible) {
-          const menuHit = ray
-            .intersectObjects(xrMenu.children, true)
-            .find((hit) => hit.object.userData.action);
+          xrMenu.updateMatrixWorld(true);
+          const menuHit = ray.intersectObjects(menuTargets, false)[0];
           if (menuHit) {
-            const action = menuHit.object.userData.action;
-            if (action === "voice")
-              window.dispatchEvent(new Event("davespace-toggle-mic"));
-            if (action === "social")
-              showXRNotice(xrMenu, "FRIENDS", "NovaSkye · PixelFox · OrbitDave");
-            if (action === "worlds") {
-              const order: WorldId[] = ["fireside", "neon", "garden", "studio", "ocean", "moon", "arcade", "gallery"];
-              window.dispatchEvent(new CustomEvent("davespace-change-world", {
-                detail: order[(order.indexOf(world) + 1) % order.length],
-              }));
-            }
-            if (action === "messages")
-              showXRNotice(xrMenu, "MESSAGES", "Open world chat · notifications enabled");
-            if (action === "avatar")
-              showXRNotice(xrMenu, "AVATAR", `Equipped: ${avatarId} · use desktop selector for previews`);
-            if (action === "settings")
-              showXRNotice(xrMenu, "SETTINGS", "Y menu · X mute · comfort turning enabled");
-            if (action === "spawn-cube") spawnTool("cube", scene, grab);
-            if (action === "spawn-pen") spawnTool("pen", scene, grab);
-            if (action === "spawn-target") spawnTool("target", scene, grab);
-            if (action === "spawn-portal") {
-              const portal = spawnTool("portal", scene, grab);
-              portals.push(portal);
-              placeAction.send({ kind: "portal", p: portal.position.toArray() });
-            }
-            if (action === "leave") onExit();
-            if (action === "close") xrMenu.visible = false;
+            runMenuAction(menuHit.object.userData.action);
             return;
           }
         }
@@ -550,7 +563,7 @@ export default function WorldScene({
       const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)),
         r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)),
         speed =
-          (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
+          (comfortMode ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
       if (forward) rig.position.addScaledVector(f, forward * speed);
       if (side) rig.position.addScaledVector(r, side * speed);
       if (keys.has("Space") && !jumpWasPressed && rig.position.y <= 0.001) {
@@ -605,6 +618,26 @@ export default function WorldScene({
           (Math.sin(t * 2 + i) - Math.sin((t - dt) * 2 + i)) * 0.025;
       });
       weather?.update(t);
+      const hoveredTargets: THREE.Mesh[] = [];
+      menuTargets.forEach((target) => {
+        (target.material as THREE.MeshBasicMaterial).color.set(0xffffff);
+      });
+      controllers.forEach((controller, index) => {
+        const cursor = cursors[index];
+        cursor.visible = false;
+        if (!xrMenu.visible) return;
+        xrMenu.updateMatrixWorld(true);
+        ray.setFromXRController(controller);
+        const hit = ray.intersectObjects(menuTargets, false)[0];
+        if (hit) {
+          hoveredTargets.push(hit.object as THREE.Mesh);
+          cursor.visible = true;
+          cursor.position.copy(hit.point);
+          cursor.quaternion.copy(xrMenu.quaternion);
+        }
+      });
+      if (hoveredTargets[0])
+        (hoveredTargets[0].material as THREE.MeshBasicMaterial).color.set(0x8fffe6);
       for (const portal of portals) {
         portal.rotation.z += dt * .75;
         if (portal.position.distanceTo(rig.position) < 1.65 && !portal.userData.used) {

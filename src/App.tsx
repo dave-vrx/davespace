@@ -24,7 +24,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-30-avatar-portals-weather-13";
+const BUILD_ID = "2026-08-30-ray-menu-actions-14";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -111,6 +111,15 @@ export default function App() {
     const notify = (event: Event) => setToast((event as CustomEvent<string>).detail);
     window.addEventListener("davespace-system-notification", notify);
     return () => window.removeEventListener("davespace-system-notification", notify);
+  }, []);
+  useEffect(() => {
+    const cycleAvatar = () => setAvatarId((current) => {
+      const next = avatars[(avatars.findIndex((item) => item.id === current) + 1) % avatars.length].id;
+      localStorage.setItem("davespace-avatar", next);
+      return next;
+    });
+    window.addEventListener("davespace-cycle-avatar", cycleAvatar);
+    return () => window.removeEventListener("davespace-cycle-avatar", cycleAvatar);
   }, []);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -355,9 +364,19 @@ export default function App() {
             <button className="close" onClick={() => setPanel(false)}>
               <X />
             </button>
+            <section className="page-card quick-panel">
+              <small>QUICK MENU</small><h2>World controls</h2>
+              <div className="tool-row">
+                <button onClick={toggleMic}>{mic ? "MUTE MICROPHONE" : "ENABLE MICROPHONE"}</button>
+                <button onClick={() => join(worlds[(worlds.findIndex((item) => item.id === world) + 1) % worlds.length].id)}>NEXT WORLD</button>
+                <button onClick={() => window.dispatchEvent(new Event("davespace-cycle-avatar"))}>NEXT AVATAR</button>
+                <button onClick={exit}>LEAVE WORLD</button>
+              </div>
+            </section>
             <Friends data={friends} add={add} />
             <Chat {...{ chat, draft, setDraft, send }} />
             <YouTubePlayer />
+            <AvatarSelector selected={avatarId} select={(id) => { setAvatarId(id); localStorage.setItem("davespace-avatar", id); }} />
           </aside>
         )}
         <div className="move-tip">

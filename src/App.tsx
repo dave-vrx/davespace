@@ -21,6 +21,7 @@ import "./Mobile.css";
 import "./Friendly.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
+const BUILD_ID = "2026-08-30-voice-vr-3";
 const worlds: {
   id: WorldId;
   name: string;
@@ -85,6 +86,13 @@ export default function App() {
     [draft, setDraft] = useState(""),
     [toast, setToast] = useState(""),
     [online, setOnline] = useState(1);
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (url.searchParams.get("build") !== BUILD_ID) {
+      url.searchParams.set("build", BUILD_ID);
+      location.replace(url.toString());
+    }
+  }, []);
   useEffect(() => {
     const t = setTimeout(() => {
       const n = localStorage.getItem("davespace-name");
@@ -217,7 +225,10 @@ export default function App() {
           <img src={`${import.meta.env.BASE_URL}logo.svg`} />
           <span>
             <strong>{worlds.find((w) => w.id === world)?.name}</strong>
-            <small>PUBLIC INSTANCE · {online} / 24</small>
+            <small>
+              PUBLIC INSTANCE · {online} / 24 ·{" "}
+              {online > 1 ? "PEER CONNECTED" : "WAITING FOR PEER"}
+            </small>
           </span>
           <button onClick={exit}>LEAVE WORLD</button>
         </div>
@@ -408,6 +419,21 @@ export default function App() {
           <section className="page-card settings-page">
             <small>PROFILE & COMFORT</small>
             <h2>Settings</h2>
+            <label>
+              <span>Build {BUILD_ID}</span>
+              <button
+                onClick={async () => {
+                  if ("caches" in window)
+                    await Promise.all(
+                      (await caches.keys()).map((key) => caches.delete(key)),
+                    );
+                  localStorage.removeItem("vrspace-build");
+                  location.href = `${location.pathname}?build=${BUILD_ID}&refresh=${Date.now()}`;
+                }}
+              >
+                CLEAR CACHE & RELOAD
+              </button>
+            </label>
             <label>
               Display name
               <input

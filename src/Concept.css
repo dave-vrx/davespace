@@ -1,0 +1,171 @@
+:root {
+  --violet: #8b5cff;
+}
+.hub {
+  grid-template-columns: 218px 1fr;
+  background-image:
+    linear-gradient(90deg, #050914e8, #05091485 50%, #050914e8),
+    url("/vrspace/vrspace-lounge.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+.hub aside {
+  align-items: stretch;
+  padding: 22px 16px;
+  border-right: 1px solid #8b5cff33;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px 25px;
+}
+.brand .logo-img {
+  width: 48px;
+  margin: 0;
+}
+.brand strong {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+.hub aside button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.hub aside button svg {
+  display: inline;
+  width: 18px;
+  margin: 0;
+}
+.hub aside button.active {
+  background: linear-gradient(90deg, #5a39e8, #343ac9);
+  color: #fff;
+  box-shadow: 0 8px 28px #5535d755;
+}
+.hub main {
+  padding: 28px 3.5vw 60px;
+  background: #070b1594;
+  backdrop-filter: blur(2px);
+}
+.hub header {
+  padding: 10px 4px;
+}
+.hero-card {
+  min-height: 360px;
+  margin-top: 18px;
+  border-color: #8c6cff55;
+  background:
+    linear-gradient(90deg, #0a1122ee, #0a112275 58%, #11132633),
+    url("/vrspace/vrspace-lounge.png");
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 26px 80px #0009;
+}
+.hero-card:after {
+  background: linear-gradient(90deg, #070d1be8, transparent 76%);
+}
+.hero-card h2 {
+  font-size: clamp(44px, 6vw, 76px);
+  text-shadow: 0 5px 30px #000;
+}
+.hero-card button:first-of-type {
+  background: linear-gradient(90deg, #4659ff, #9a43ff);
+  color: white;
+  box-shadow: 0 10px 30px #663eff66;
+}
+.fire-mark {
+  color: #a65cff;
+  text-shadow: 0 0 45px #8b5cff;
+}
+.world-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.world-grid article {
+  padding: 7px;
+  border-color: #8563ff3d;
+  background: #080e1be8;
+}
+.world-visual {
+  height: 180px;
+}
+.world-visual.fireside {
+  background:
+    linear-gradient(160deg, transparent, #f36d3666),
+    url("/vrspace/vrspace-lounge.png") center/cover;
+}
+.world-visual.neon {
+  background: linear-gradient(145deg, #22104a, #6941ff 56%, #14cce0);
+}
+.world-visual.garden {
+  background: radial-gradient(circle at 50% 65%, #52e2c0, #123b4b 65%);
+}
+.world-visual.studio {
+  background: linear-gradient(140deg, #1b2848, #5a34a4);
+}
+.world-grid h3 {
+  font-size: 14px;
+}
+.world-grid article p {
+  font-size: 9px;
+}
+.status {
+  padding: 7px 9px;
+  border: 1px solid #ffffff18;
+  border-radius: 24px;
+  background: #07101ecc;
+}
+.avatar {
+  box-shadow: 0 0 0 2px #8b5cff;
+}
+.page-card {
+  background: linear-gradient(145deg, #0c1424ed, #080d18ed);
+  border-color: #8a6cff30;
+}
+.social-page {
+  grid-template-columns: 1fr 1.1fr;
+}
+.settings-page button {
+  color: #fff;
+  background: #5535d7;
+}
+.world-top > img {
+  border-radius: 12px;
+  box-shadow: 0 0 24px #845cff88;
+}
+@media (max-width: 1000px) {
+  .world-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .hub {
+    grid-template-columns: 1fr;
+  }
+  .brand {
+    display: none;
+  }
+  .hub aside {
+    align-items: center;
+  }
+  .hub aside button {
+    display: block;
+    padding: 10px 2px;
+  }
+  .hub aside button svg {
+    display: block;
+    margin: auto;
+  }
+  .world-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero-card {
+    min-height: 420px;
+  }
+}

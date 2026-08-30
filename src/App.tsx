@@ -19,9 +19,10 @@ import "./App.css";
 import "./Enhance.css";
 import "./Mobile.css";
 import "./Friendly.css";
+import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
-const BUILD_ID = "2026-08-30-hands-menu-mqtt-4";
+const BUILD_ID = "2026-08-30-concept-hands-5";
 const worlds: {
   id: WorldId;
   name: string;
@@ -320,7 +321,13 @@ export default function App() {
   return (
     <div className="hub">
       <aside>
-        <img className="logo-img" src={`${import.meta.env.BASE_URL}logo.svg`} />
+        <div className="brand">
+          <img
+            className="logo-img"
+            src={`${import.meta.env.BASE_URL}logo.svg`}
+          />
+          <strong>VRSpace</strong>
+        </div>
         {(["discover", "social", "worlds", "create"] as Tab[]).map((t, i) => {
           const I = [Compass, Users, Box, Waypoints][i];
           return (
@@ -362,7 +369,7 @@ export default function App() {
           <>
             <section className="hero-card">
               <div>
-                <small>FEATURED WORLD</small>
+                <small>EXPLORE · CONNECT · BELONG</small>
                 <h2>Fireside Cinema</h2>
                 <p>
                   A warm social clearing under the stars. Meet friends, watch

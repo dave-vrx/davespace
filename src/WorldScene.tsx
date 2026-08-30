@@ -206,7 +206,34 @@ export default function WorldScene({
     controllers.forEach((c, i) => {
       // Controllers must share the locomotion rig or hands stay behind when moving.
       rig.add(c);
-      c.add(makeHand(i ? "right" : "left"));
+      const controllerHand = new THREE.Group();
+      controllerHand.name = "controller-hand-model";
+      c.add(controllerHand);
+      new GLTFLoader().load(
+        `${import.meta.env.BASE_URL}hands/${i ? "right" : "left"}.glb`,
+        (gltf) => {
+          const model = gltf.scene;
+          model.rotation.set(-Math.PI / 2, i ? Math.PI / 2 : -Math.PI / 2, 0);
+          model.position.set(i ? 0.025 : -0.025, -0.035, -0.055);
+          model.traverse((part) => {
+            if ((part as THREE.Mesh).isMesh) {
+              const mesh = part as THREE.Mesh;
+              mesh.castShadow = true;
+              mesh.material = new THREE.MeshStandardMaterial({
+                color: 0x161522,
+                emissive: 0x6f36ff,
+                emissiveIntensity: 0.28,
+                roughness: 0.52,
+                metalness: 0.18,
+              });
+            }
+          });
+          controllerHand.add(model);
+        },
+      );
+      c.addEventListener("connected", (event) => {
+        controllerHand.visible = !(event.data as XRInputSource).hand;
+      });
       c.add(
         new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([
@@ -632,32 +659,6 @@ function screen(s: THREE.Scene) {
   );
   d.position.set(0, 2.5, -8.88);
   s.add(d);
-}
-function makeHand(side: string) {
-  const g = new THREE.Group(),
-    hologram = new THREE.ShaderMaterial({
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { glow: { value: new THREE.Color(0x70f1bd) } },
-      vertexShader:
-        "varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=(modelViewMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*vec4(p,1.);}",
-      fragmentShader:
-        "uniform vec3 glow;varying vec3 n;varying vec3 p;void main(){float rim=pow(1.-abs(dot(normalize(n),normalize(-p))),2.);float scan=.7+.3*sin(p.y*90.);gl_FragColor=vec4(glow,(.3+rim*.7)*scan);}",
-    }),
-    p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.06), hologram);
-  g.add(p);
-  for (let i = 0; i < 5; i++) {
-    const f = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.018, 0.09, 3, 6),
-      hologram,
-    );
-    f.position.set((i - 2) * 0.027, 0.1, -0.02);
-    g.add(f);
-  }
-  g.scale.x = side === "left" ? -1 : 1;
-  return g;
 }
 function makeRemoteAvatar(
   name: string,

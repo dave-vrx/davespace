@@ -23,7 +23,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "create" | "settings";
-const BUILD_ID = "2026-08-30-human-rig-xr-menu-8";
+const BUILD_ID = "2026-08-30-quest-grip-rig-9";
 const worlds: {
   id: WorldId;
   name: string;
@@ -127,6 +127,14 @@ export default function App() {
     const toggle = () => setPanel((value) => !value);
     window.addEventListener("vrspace-toggle-menu", toggle);
     return () => window.removeEventListener("vrspace-toggle-menu", toggle);
+  }, []);
+  useEffect(() => {
+    const changeWorld = (event: Event) => {
+      setWorld((event as CustomEvent<WorldId>).detail);
+      setToast("Travelling to the next DAVESPACE world");
+    };
+    window.addEventListener("davespace-change-world", changeWorld);
+    return () => window.removeEventListener("davespace-change-world", changeWorld);
   }, []);
   const enter = () => {
     if (name.trim().length < 3) return;

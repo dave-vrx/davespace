@@ -82,6 +82,7 @@ export default function WorldScene({
     );
     const poseAction = room.makeAction<{
       p: number[];
+      h: number[];
       q: number[];
       l: number[];
       r: number[];
@@ -150,8 +151,13 @@ export default function WorldScene({
       const right = avatar.getObjectByName("right-hand");
       if (left) left.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.l)));
       if (right) right.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.r)));
-      updateAvatarLimb(avatar, "left-arm", new THREE.Vector3(-0.2, -0.22, 0), left?.position);
-      updateAvatarLimb(avatar, "right-arm", new THREE.Vector3(0.2, -0.22, 0), right?.position);
+      const remoteHead = avatar.getObjectByName("avatar-head");
+      if (remoteHead && pose.h)
+        remoteHead.position.copy(
+          avatar.worldToLocal(new THREE.Vector3().fromArray(pose.h)),
+        );
+      updateAvatarLimb(avatar, "left-arm", new THREE.Vector3(-0.22, 1.42, 0), left?.position);
+      updateAvatarLimb(avatar, "right-arm", new THREE.Vector3(0.22, 1.42, 0), right?.position);
     };
     chatAction.onMessage = (message) => {
       window.dispatchEvent(
@@ -218,6 +224,7 @@ export default function WorldScene({
         renderer.xr.getController(0),
         renderer.xr.getController(1),
       ],
+      grips = [renderer.xr.getControllerGrip(0), renderer.xr.getControllerGrip(1)],
       ray = new THREE.Raycaster();
     let held: THREE.Mesh | null = null,
       parent: THREE.Object3D | null = null;
@@ -225,15 +232,18 @@ export default function WorldScene({
     controllers.forEach((c, i) => {
       // Controllers must share the locomotion rig or hands stay behind when moving.
       rig.add(c);
+      rig.add(grips[i]);
       const controllerHand = new THREE.Group();
       controllerHand.name = "controller-hand-model";
-      c.add(controllerHand);
+      // Visual hands belong to the physical grip pose. The target-ray pose is
+      // only for pointing and is angled differently on Quest controllers.
+      grips[i].add(controllerHand);
       new GLTFLoader().load(
         `${import.meta.env.BASE_URL}hands/${i ? "right" : "left"}.glb`,
         (gltf) => {
           const model = gltf.scene;
-          model.rotation.set(-Math.PI / 2, i ? Math.PI / 2 : -Math.PI / 2, 0);
-          model.position.set(i ? 0.025 : -0.025, -0.035, -0.055);
+          model.rotation.set(0, 0, 0);
+          model.position.set(0, 0, 0);
           model.traverse((part) => {
             if ((part as THREE.Bone).isBone) {
               part.userData.openQuaternion = part.quaternion.clone();
@@ -275,13 +285,17 @@ export default function WorldScene({
           if (menuHit) {
             const action = menuHit.object.userData.action;
             if (action === "voice")
-              window.dispatchEvent(new Event("vrspace-enable-audio"));
+              window.dispatchEvent(new Event("davespace-toggle-mic"));
             if (action === "social")
-              window.dispatchEvent(new Event("vrspace-toggle-menu"));
-            if (action === "worlds")
-              window.dispatchEvent(new Event("vrspace-toggle-menu"));
+              showXRNotice(xrMenu, "FRIENDS", "NovaSkye · PixelFox · OrbitDave");
+            if (action === "worlds") {
+              const order: WorldId[] = ["fireside", "neon", "garden", "studio"];
+              window.dispatchEvent(new CustomEvent("davespace-change-world", {
+                detail: order[(order.indexOf(world) + 1) % order.length],
+              }));
+            }
             if (action === "messages")
-              window.dispatchEvent(new Event("vrspace-toggle-menu"));
+              showXRNotice(xrMenu, "MESSAGES", "Open world chat · notifications enabled");
             if (action === "spawn-cube") spawnTool("cube", scene, grab);
             if (action === "spawn-pen") spawnTool("pen", scene, grab);
             if (action === "spawn-target") spawnTool("target", scene, grab);
@@ -339,6 +353,7 @@ export default function WorldScene({
         )
           e.preventDefault();
         keys.add(e.code);
+        if (e.code === "KeyM") toggleXRMenu();
         if (e.code === "Escape") onExit();
       },
       ku = (e: KeyboardEvent) => keys.delete(e.code),
@@ -431,7 +446,7 @@ export default function WorldScene({
         let jumpPressed = false;
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
-          if (source.handedness === "left") {
+          if (source.handedness === "left" || source.handedness === "none") {
             const buttons = source.gamepad?.buttons ?? [];
             xPressed = Boolean(buttons[4]?.pressed);
             yPressed = Boolean(buttons[5]?.pressed);
@@ -494,14 +509,14 @@ export default function WorldScene({
         verticalVelocity = 0;
       }
       if (t - lastPose > 0.05) {
-        const head = renderer.xr.isPresenting
+      const head = renderer.xr.isPresenting
           ? renderer.xr.getCamera()
           : camera;
         head.getWorldPosition(headPosition);
         head.getWorldQuaternion(headQuaternion);
         if (renderer.xr.isPresenting) {
-          controllers[0].getWorldPosition(leftPosition);
-          controllers[1].getWorldPosition(rightPosition);
+          grips[0].getWorldPosition(leftPosition);
+          grips[1].getWorldPosition(rightPosition);
         } else {
           leftPosition
             .copy(headPosition)
@@ -519,7 +534,8 @@ export default function WorldScene({
             );
         }
         poseAction.send({
-          p: headPosition.toArray(),
+          p: rig.position.toArray(),
+          h: headPosition.toArray(),
           q: headQuaternion.toArray(),
           l: leftPosition.toArray(),
           r: rightPosition.toArray(),
@@ -735,11 +751,13 @@ function makeRemoteAvatar(
   const skin = M(0xd5a17d),
     cloth = M(0x536fff, 0.08);
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18, 2), skin);
+  head.name = "avatar-head";
+  head.position.y = 1.67;
   const torso = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.2, 0.42, 5, 10),
     cloth,
   );
-  torso.position.y = -0.48;
+  torso.position.y = 1.12;
   if (template) {
     const model = cloneSkeleton(template);
     const initialBox = new THREE.Box3().setFromObject(model);
@@ -747,7 +765,7 @@ function makeRemoteAvatar(
     model.scale.setScalar(1.68 / height);
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
-    model.position.y = -0.12 - box.max.y;
+    model.position.y = -box.min.y;
     model.rotation.y = Math.PI;
     model.traverse((part) => {
       if ((part as THREE.Mesh).isMesh) {
@@ -765,13 +783,13 @@ function makeRemoteAvatar(
   ] as const) {
     const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.11, 5, 10), skin);
     hand.name = side;
-    hand.position.set(x, -0.25, -0.15);
+    hand.position.set(x, 1.25, -0.15);
     group.add(hand);
   }
   for (const [name, x] of [["left-arm", -0.2], ["right-arm", 0.2]] as const) {
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.5, 5, 10), cloth);
     arm.name = name;
-    arm.position.set(x, -0.45, 0);
+    arm.position.set(x, 1.15, 0);
     group.add(arm);
   }
   const canvas = document.createElement("canvas");
@@ -793,7 +811,7 @@ function makeRemoteAvatar(
       depthTest: false,
     }),
   );
-  label.position.y = 0.5;
+  label.position.y = 2.12;
   label.scale.set(1.8, 0.45, 1);
   group.add(label);
   return group;
@@ -909,6 +927,25 @@ function makeMenuButton(label: string, tone: "primary" | "tool" | "danger") {
   ctx.strokeStyle = tone === "danger" ? "#ff6fae" : tone === "tool" ? "#58e8ed" : "#9d8aff"; ctx.lineWidth = 5; ctx.stroke();
   ctx.fillStyle = "#fff"; ctx.font = "800 30px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, 310, 77);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
+}
+
+function showXRNotice(menu: THREE.Group, title: string, message: string) {
+  menu.getObjectByName("xr-notice")?.removeFromParent();
+  const notice = new THREE.Group();
+  notice.name = "xr-notice";
+  const card = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.08, 0.22),
+    new THREE.MeshBasicMaterial({ color: 0x17143f, transparent: true, opacity: 0.98 }),
+  );
+  notice.add(card);
+  const heading = textSprite(title, "#71f3d0", 0.25, 0.05);
+  heading.position.set(-0.34, 0.045, 0.01);
+  const body = textSprite(message, "#ffffff", 0.7, 0.045);
+  body.position.set(0.1, -0.04, 0.01);
+  notice.add(heading, body);
+  notice.position.set(0, -0.62, 0.03);
+  menu.add(notice);
+  window.setTimeout(() => notice.removeFromParent(), 4200);
 }
 
 function spawnTool(kind: "cube" | "pen" | "target", scene: THREE.Scene, grab: THREE.Mesh[]) {

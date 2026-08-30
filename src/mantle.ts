@@ -1,0 +1,1 @@
+export const MANTLE_NAMESPACE='dave-vrx-davespace-social';export const MANTLE_URL=`https://mantledb.sh/v2/${MANTLE_NAMESPACE}`;export async function readPublic<T>(path:string):Promise<T|null>{try{const r=await fetch(`${MANTLE_URL}/${path}`);return r.ok?await r.json():null}catch{return null}}

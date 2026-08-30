@@ -21,7 +21,7 @@ import "./Mobile.css";
 import "./Friendly.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
-const BUILD_ID = "2026-08-30-voice-vr-3";
+const BUILD_ID = "2026-08-30-hands-menu-mqtt-4";
 const worlds: {
   id: WorldId;
   name: string;

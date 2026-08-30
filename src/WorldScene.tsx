@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
 import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.js";
-import { joinRoom, selfId } from "trystero";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { joinRoom, selfId } from "@trystero-p2p/mqtt";
 export type WorldId = "fireside" | "neon" | "garden" | "studio";
 const M = (c: number, e = 0) =>
   new THREE.MeshStandardMaterial({
@@ -88,6 +90,27 @@ export default function WorldScene({
     const chatAction = room.makeAction<string>("chat");
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
+    let avatarTemplate: THREE.Object3D | null = null;
+    new GLTFLoader().load(
+      `${import.meta.env.BASE_URL}avatars/RobotExpressive.glb`,
+      (gltf) => {
+        avatarTemplate = gltf.scene;
+        for (const [peerId, old] of remoteAvatars) {
+          const position = old.position.clone(),
+            quaternion = old.quaternion.clone();
+          scene.remove(old);
+          remoteAvatars.delete(peerId);
+          const upgraded = makeRemoteAvatar(
+            remoteNames.get(peerId) ?? "Guest",
+            avatarTemplate,
+          );
+          upgraded.position.copy(position);
+          upgraded.quaternion.copy(quaternion);
+          remoteAvatars.set(peerId, upgraded);
+          scene.add(upgraded);
+        }
+      },
+    );
     const peerAudio = new Map<string, HTMLAudioElement>();
     const publishPresence = () =>
       window.dispatchEvent(
@@ -96,7 +119,10 @@ export default function WorldScene({
     const ensurePeer = (peerId: string) => {
       let avatar = remoteAvatars.get(peerId);
       if (!avatar) {
-        avatar = makeRemoteAvatar(remoteNames.get(peerId) ?? "Guest");
+        avatar = makeRemoteAvatar(
+          remoteNames.get(peerId) ?? "Guest",
+          avatarTemplate,
+        );
         remoteAvatars.set(peerId, avatar);
         scene.add(avatar);
       }
@@ -158,7 +184,7 @@ export default function WorldScene({
     camera.add(body);
     const xrMenu = makeXRMenu();
     xrMenu.visible = false;
-    rig.add(xrMenu);
+    scene.add(xrMenu);
     const toggleXRMenu = () => {
       xrMenu.visible = !xrMenu.visible;
       if (xrMenu.visible) {
@@ -168,7 +194,6 @@ export default function WorldScene({
         view.getWorldPosition(xrMenu.position);
         view.getWorldQuaternion(xrMenu.quaternion);
         xrMenu.translateZ(-1.35);
-        rig.worldToLocal(xrMenu.position);
       }
     };
     const controllers = [
@@ -223,9 +248,7 @@ export default function WorldScene({
       });
     });
     const handFactory = new XRHandModelFactory();
-    handFactory.setPath(
-      "https://cdn.jsdelivr.net/npm/@webxr-input-profiles/assets@1.0/dist/profiles/generic-hand/",
-    );
+    handFactory.setPath(`${import.meta.env.BASE_URL}hands/`);
     const trackedHands = [renderer.xr.getHand(0), renderer.xr.getHand(1)];
     trackedHands.forEach((hand) => {
       const model = handFactory.createHandModel(hand, "mesh");
@@ -346,6 +369,12 @@ export default function WorldScene({
         let yPressed = false;
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
+          if (source.handedness === "left") {
+            const buttons = source.gamepad?.buttons ?? [];
+            yPressed = Boolean(
+              buttons[3]?.pressed || buttons[4]?.pressed || buttons[5]?.pressed,
+            );
+          }
           if (axes && axes.length >= 2) {
             const x = axes[axes.length - 2],
               y = axes[axes.length - 1];
@@ -356,10 +385,6 @@ export default function WorldScene({
               // Walk and strafe with the left stick.
               if (Math.abs(x) > 0.15) side += x;
               if (Math.abs(y) > 0.15) forward -= y;
-              yPressed = Boolean(
-                source.gamepad?.buttons[4]?.pressed ||
-                  source.gamepad?.buttons[5]?.pressed,
-              );
             }
           }
         }
@@ -634,7 +659,10 @@ function makeHand(side: string) {
   g.scale.x = side === "left" ? -1 : 1;
   return g;
 }
-function makeRemoteAvatar(name: string) {
+function makeRemoteAvatar(
+  name: string,
+  template: THREE.Object3D | null = null,
+) {
   const group = new THREE.Group();
   const skin = M(0xd5a17d),
     cloth = M(0x536fff, 0.08);
@@ -644,6 +672,20 @@ function makeRemoteAvatar(name: string) {
     cloth,
   );
   torso.position.y = -0.48;
+  if (template) {
+    const model = cloneSkeleton(template);
+    model.scale.setScalar(0.58);
+    model.position.y = -1.62;
+    model.rotation.y = Math.PI;
+    model.traverse((part) => {
+      if ((part as THREE.Mesh).isMesh) {
+        (part as THREE.Mesh).castShadow = true;
+      }
+    });
+    group.add(model);
+    head.visible = false;
+    torso.visible = false;
+  }
   group.add(head, torso);
   for (const [side, x] of [
     ["left-hand", -0.35],

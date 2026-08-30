@@ -18,6 +18,7 @@ import WorldScene, { type WorldId } from "./WorldScene";
 import "./App.css";
 import "./Enhance.css";
 import "./Mobile.css";
+import "./Friendly.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "create" | "settings";
 const worlds: {
@@ -109,6 +110,11 @@ export default function App() {
     window.addEventListener("vrspace-presence", presence);
     return () => window.removeEventListener("vrspace-presence", presence);
   }, []);
+  useEffect(() => {
+    const toggle = () => setPanel((value) => !value);
+    window.addEventListener("vrspace-toggle-menu", toggle);
+    return () => window.removeEventListener("vrspace-toggle-menu", toggle);
+  }, []);
   const enter = () => {
     if (name.trim().length < 3) return;
     localStorage.setItem("davespace-name", name.trim());
@@ -131,6 +137,7 @@ export default function App() {
         setStream(s);
         setMic(true);
         setToast("Microphone ready");
+        window.dispatchEvent(new Event("vrspace-enable-audio"));
       } catch {
         setToast("Microphone permission blocked");
       }
@@ -219,9 +226,14 @@ export default function App() {
             {mic ? <Mic /> : <MicOff />}
             <span>{mic ? "MIC ON" : "MUTED"}</span>
           </button>
-          <button>
+          <button
+            onClick={() => {
+              window.dispatchEvent(new Event("vrspace-enable-audio"));
+              setToast("Voice playback enabled");
+            }}
+          >
             <Volume2 />
-            <span>100%</span>
+            <span>ENABLE AUDIO</span>
           </button>
           <button onClick={() => setPanel((v) => !v)}>
             <Users />
@@ -284,6 +296,7 @@ export default function App() {
             </button>
             <Friends data={friends} add={add} />
             <Chat {...{ chat, draft, setDraft, send }} />
+            <YouTubePlayer />
           </aside>
         )}
         <div className="move-tip">
@@ -505,6 +518,45 @@ function Chat({
           <Send />
         </button>
       </div>
+    </section>
+  );
+}
+function YouTubePlayer() {
+  const [input, setInput] = useState(""),
+    [videoId, setVideoId] = useState("");
+  const load = () => {
+    const match =
+      input.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{11})/) ??
+      input.match(/^([A-Za-z0-9_-]{11})$/);
+    if (match?.[1]) setVideoId(match[1]);
+    else
+      window.open(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(input)}`,
+        "_blank",
+        "noopener",
+      );
+  };
+  return (
+    <section className="page-card youtube">
+      <small>WORLD VIDEO</small>
+      <h2>YouTube</h2>
+      <div className="composer">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && load()}
+          placeholder="Paste a YouTube link or search"
+        />
+        <button onClick={load}>LOAD</button>
+      </div>
+      {videoId && (
+        <iframe
+          title="YouTube player"
+          src={`https://www.youtube.com/embed/${videoId}?playsinline=1`}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+        />
+      )}
     </section>
   );
 }

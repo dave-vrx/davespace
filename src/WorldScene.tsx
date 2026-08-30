@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
+import { XRHandModelFactory } from "three/examples/jsm/webxr/XRHandModelFactory.js";
 import { joinRoom, selfId } from "trystero";
 export type WorldId = "fireside" | "neon" | "garden" | "studio";
 const M = (c: number, e = 0) =>
@@ -148,10 +149,28 @@ export default function WorldScene({
       void audio.play().catch(() => undefined);
       peerAudio.set(peerId, audio);
     };
+    const unlockAudio = () =>
+      peerAudio.forEach((audio) => void audio.play().catch(() => undefined));
+    window.addEventListener("vrspace-enable-audio", unlockAudio);
     nameAction.send(playerName);
     if (audioStream) room.addStream(audioStream);
     const body = makeBody();
     camera.add(body);
+    const xrMenu = makeXRMenu();
+    xrMenu.visible = false;
+    rig.add(xrMenu);
+    const toggleXRMenu = () => {
+      xrMenu.visible = !xrMenu.visible;
+      if (xrMenu.visible) {
+        const view = renderer.xr.isPresenting
+          ? renderer.xr.getCamera()
+          : camera;
+        view.getWorldPosition(xrMenu.position);
+        view.getWorldQuaternion(xrMenu.quaternion);
+        xrMenu.translateZ(-1.35);
+        rig.worldToLocal(xrMenu.position);
+      }
+    };
     const controllers = [
         renderer.xr.getController(0),
         renderer.xr.getController(1),
@@ -174,6 +193,21 @@ export default function WorldScene({
       );
       c.addEventListener("selectstart", () => {
         ray.setFromXRController(c);
+        if (xrMenu.visible) {
+          const menuHit = ray
+            .intersectObjects(xrMenu.children, true)
+            .find((hit) => hit.object.userData.action);
+          if (menuHit) {
+            const action = menuHit.object.userData.action;
+            if (action === "voice")
+              window.dispatchEvent(new Event("vrspace-enable-audio"));
+            if (action === "social")
+              window.dispatchEvent(new Event("vrspace-toggle-menu"));
+            if (action === "leave") onExit();
+            if (action === "close") xrMenu.visible = false;
+            return;
+          }
+        }
         const h = ray.intersectObjects(grab)[0];
         if (h) {
           held = h.object as THREE.Mesh;
@@ -187,6 +221,16 @@ export default function WorldScene({
           held = null;
         }
       });
+    });
+    const handFactory = new XRHandModelFactory();
+    handFactory.setPath(
+      "https://cdn.jsdelivr.net/npm/@webxr-input-profiles/assets@1.0/dist/profiles/generic-hand/",
+    );
+    const trackedHands = [renderer.xr.getHand(0), renderer.xr.getHand(1)];
+    trackedHands.forEach((hand) => {
+      const model = handFactory.createHandModel(hand, "mesh");
+      hand.add(model);
+      rig.add(hand);
     });
     const keys = new Set<string>();
     const mobile = new Set<string>();
@@ -275,7 +319,8 @@ export default function WorldScene({
     ro.observe(root);
     resize();
     const clock = new THREE.Clock();
-    let lastPose = 0;
+    let lastPose = 0,
+      yWasPressed = false;
     const headPosition = new THREE.Vector3(),
       headQuaternion = new THREE.Quaternion();
     const leftPosition = new THREE.Vector3(),
@@ -298,6 +343,7 @@ export default function WorldScene({
           (mobile.has("right") ? 1 : 0) -
           (mobile.has("left") ? 1 : 0);
       if (renderer.xr.isPresenting) {
+        let yPressed = false;
         for (const source of renderer.xr.getSession()?.inputSources ?? []) {
           const axes = source.gamepad?.axes;
           if (axes && axes.length >= 2) {
@@ -310,9 +356,15 @@ export default function WorldScene({
               // Walk and strafe with the left stick.
               if (Math.abs(x) > 0.15) side += x;
               if (Math.abs(y) > 0.15) forward -= y;
+              yPressed = Boolean(
+                source.gamepad?.buttons[4]?.pressed ||
+                  source.gamepad?.buttons[5]?.pressed,
+              );
             }
           }
         }
+        if (yPressed && !yWasPressed) toggleXRMenu();
+        yWasPressed = yPressed;
         rig.rotation.y = yaw;
       } else {
         rig.rotation.y = 0;
@@ -372,6 +424,7 @@ export default function WorldScene({
       removeEventListener("pointerup", up);
       window.removeEventListener("vrspace-send-chat", sendChat);
       window.removeEventListener("vrspace-mobile-move", mobileMove);
+      window.removeEventListener("vrspace-enable-audio", unlockAudio);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       renderer.dispose();
@@ -624,6 +677,80 @@ function makeRemoteAvatar(name: string) {
   label.scale.set(1.8, 0.45, 1);
   group.add(label);
   return group;
+}
+function makeXRMenu() {
+  const group = new THREE.Group();
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.05, 0.78),
+    new THREE.MeshBasicMaterial({
+      color: 0x07131b,
+      transparent: true,
+      opacity: 0.94,
+      side: THREE.DoubleSide,
+    }),
+  );
+  group.add(panel);
+  const title = textSprite("VRSPACE", "#70f1bd", 0.28, 0.07);
+  title.position.set(0, 0.29, 0.01);
+  group.add(title);
+  (
+    [
+      ["voice", "ENABLE VOICE"],
+      ["social", "SOCIAL"],
+      ["leave", "LEAVE"],
+      ["close", "CLOSE"],
+    ] as const
+  ).forEach(([action, label], index) => {
+    const button = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.42, 0.15),
+      new THREE.MeshBasicMaterial({
+        color: action === "leave" ? 0x54242b : 0x15382f,
+        side: THREE.DoubleSide,
+      }),
+    );
+    button.position.set(
+      index % 2 ? 0.24 : -0.24,
+      0.1 - Math.floor(index / 2) * 0.2,
+      0.012,
+    );
+    button.userData.action = action;
+    group.add(button);
+    const text = textSprite(
+      label,
+      action === "leave" ? "#ff9ba3" : "#eafff7",
+      0.35,
+      0.055,
+    );
+    text.position.copy(button.position);
+    text.position.z = 0.02;
+    group.add(text);
+  });
+  return group;
+}
+function textSprite(
+  text: string,
+  color: string,
+  width: number,
+  height: number,
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = "800 48px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.fillText(text, 256, 64);
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(canvas),
+      transparent: true,
+      depthTest: false,
+    }),
+  );
+  sprite.scale.set(width, height, 1);
+  return sprite;
 }
 function makeBody() {
   const g = new THREE.Group(),

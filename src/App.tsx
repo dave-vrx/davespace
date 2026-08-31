@@ -24,7 +24,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-hand-pages-mobile-play-15";
+const BUILD_ID = "2026-08-31-shared-campfire-screen-16";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -686,8 +686,9 @@ function YouTubePlayer() {
   };
   return (
     <section className="page-card youtube">
-      <small>SHARED WORLD SURFACE</small>
-      <h2>Browser & media</h2>
+      <small>LIVE ON THE CAMPFIRE SCREEN</small>
+      <h2>Shared browser & media</h2>
+      <p>Paste a website, YouTube link, or direct MP4/WebM address. Direct media plays with video and audio on the 3D screen.</p>
       <div className="composer">
         <input
           value={input}

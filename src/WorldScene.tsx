@@ -181,14 +181,19 @@ export default function WorldScene({
         new CustomEvent("vrspace-chat", { detail: message }),
       );
     };
+    const sharedWorldScreen = scene.getObjectByName("shared-browser-screen") as THREE.Mesh | undefined;
     browserAction.onMessage = (url) => {
       window.dispatchEvent(new CustomEvent("davespace-browser-url", { detail: url }));
+      if (sharedWorldScreen) applySharedMedia(sharedWorldScreen, url);
     };
     const sendChat = (event: Event) =>
       chatAction.send((event as CustomEvent<string>).detail);
     window.addEventListener("vrspace-send-chat", sendChat);
-    const shareBrowser = (event: Event) =>
-      browserAction.send((event as CustomEvent<string>).detail);
+    const shareBrowser = (event: Event) => {
+      const url = (event as CustomEvent<string>).detail;
+      browserAction.send(url);
+      if (sharedWorldScreen) applySharedMedia(sharedWorldScreen, url);
+    };
     window.addEventListener("davespace-share-browser", shareBrowser);
     room.onPeerJoin = (peerId) => {
       ensurePeer(peerId);
@@ -492,7 +497,9 @@ export default function WorldScene({
           );
           const h = ray.intersectObjects(grab)[0];
           if (h) {
-            if (h.object.userData.npc) {
+            if (h.object.userData.activate) {
+              h.object.userData.activate();
+            } else if (h.object.userData.npc) {
               const line = h.object.userData.line as string;
               showHUDNotice(camera, line, "#72ffd0");
               speechSynthesis.speak(new SpeechSynthesisUtterance(line));
@@ -718,6 +725,8 @@ export default function WorldScene({
       window.removeEventListener("davespace-avatar-changed", changeLocalAvatar);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
+      const sharedVideo = sharedWorldScreen?.userData.video as HTMLVideoElement | undefined;
+      if (sharedVideo) { sharedVideo.pause(); sharedVideo.removeAttribute("src"); sharedVideo.load(); }
       renderer.dispose();
       root.replaceChildren();
     };
@@ -800,7 +809,7 @@ function build(
       pet.add(body, ear, ear2, eyes); pet.position.set(Number(x), 0, Number(z)); pet.userData.petIndex = index;
       s.add(pet); a.push(pet);
     });
-    screen(s, g, true);
+    screen(s, g, "browser");
   }
   if (w === "neon") {
     for (let i = 0; i < 18; i++) {
@@ -898,7 +907,8 @@ function build(
       object.position.set(Math.cos(angle) * radius, .7 + (i % 4) * .45, Math.sin(angle) * radius - 3);
       object.castShadow = true; s.add(object); a.push(object);
     }
-    if (w === "arcade" || w === "gallery") screen(s, g);
+    if (w === "arcade") screen(s, g, "suika");
+    if (w === "gallery") screen(s, g);
   }
 }
 function addAtmosphere(scene: THREE.Scene, world: WorldId) {
@@ -966,7 +976,7 @@ function makeCampfireWeather(scene: THREE.Scene) {
     }
   }};
 }
-function screen(s: THREE.Scene, grab: THREE.Mesh[], suika = false) {
+function screen(s: THREE.Scene, grab: THREE.Mesh[], mode?: "browser" | "suika") {
   const f = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.2), M(0x101b28));
   f.position.set(0, 2.5, -9);
   s.add(f);
@@ -976,7 +986,19 @@ function screen(s: THREE.Scene, grab: THREE.Mesh[], suika = false) {
   );
   d.position.set(0, 2.5, -8.88);
   s.add(d);
-  if (suika) {
+  if (mode === "browser") {
+    d.name = "shared-browser-screen";
+    const canvas = document.createElement("canvas"); canvas.width = 960; canvas.height = 540;
+    const ctx = canvas.getContext("2d")!;
+    const gradient = ctx.createLinearGradient(0,0,960,540); gradient.addColorStop(0,"#17143f"); gradient.addColorStop(1,"#073342");
+    ctx.fillStyle=gradient; ctx.fillRect(0,0,960,540); ctx.fillStyle="#72ffd0"; ctx.font="900 54px system-ui"; ctx.fillText("SHARED SCREEN",56,88);
+    ctx.fillStyle="#fff"; ctx.font="800 34px system-ui"; ctx.fillText("Browse · watch · listen together",56,160);
+    ctx.fillStyle="#aeb7d4"; ctx.font="600 25px system-ui"; ctx.fillText("Point + trigger to open media controls",56,440);
+    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+    (d.material as THREE.MeshBasicMaterial).map=texture; (d.material as THREE.MeshBasicMaterial).color.set(0xffffff);
+    d.userData.activate=()=>window.dispatchEvent(new Event("vrspace-toggle-menu")); grab.push(d);
+  }
+  if (mode === "suika") {
     const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 360;
     const ctx = canvas.getContext("2d")!; let score = Number(localStorage.getItem("davespace-suika-score") ?? 0);
     const draw = () => {
@@ -993,6 +1015,35 @@ function screen(s: THREE.Scene, grab: THREE.Mesh[], suika = false) {
     d.userData.suika=true; d.userData.activate=()=>{ score += 1 + Math.floor(Math.random()*8); localStorage.setItem("davespace-suika-score",String(score)); draw(); texture.needsUpdate=true; };
     grab.push(d);
   }
+}
+
+function applySharedMedia(screen: THREE.Mesh, url: string) {
+  const previous = screen.userData.video as HTMLVideoElement | undefined;
+  if (previous) { previous.pause(); previous.removeAttribute("src"); previous.load(); }
+  const isDirectMedia = /\.(mp4|webm|ogv|mov|m4v)(?:[?#]|$)/i.test(url);
+  if (isDirectMedia) {
+    const video = document.createElement("video");
+    video.src = url; video.crossOrigin = "anonymous"; video.playsInline = true;
+    video.loop = true; video.volume = .85; video.preload = "auto";
+    const texture = new THREE.VideoTexture(video); texture.colorSpace = THREE.SRGBColorSpace;
+    const material = screen.material as THREE.MeshBasicMaterial;
+    material.map?.dispose(); material.map = texture; material.color.set(0xffffff); material.needsUpdate = true;
+    screen.userData.video = video;
+    screen.userData.activate = () => video.paused ? void video.play().catch(() => undefined) : video.pause();
+    void video.play().catch(() => undefined);
+    return;
+  }
+  const canvas = document.createElement("canvas"); canvas.width = 960; canvas.height = 540;
+  const ctx = canvas.getContext("2d")!; ctx.fillStyle="#0b1028"; ctx.fillRect(0,0,960,540);
+  ctx.fillStyle="#72ffd0"; ctx.font="900 50px system-ui"; ctx.fillText("SHARED BROWSER",52,82);
+  ctx.fillStyle="#fff"; ctx.font="700 29px system-ui"; ctx.fillText("This page is synchronized for everyone",52,145);
+  ctx.fillStyle="#aeb7d4"; ctx.font="600 23px system-ui";
+  const display = url.length > 62 ? `${url.slice(0,59)}…` : url; ctx.fillText(display,52,225);
+  ctx.fillStyle="#ffd166"; ctx.fillText("Point + trigger to open the browser and media controls",52,455);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+  const material = screen.material as THREE.MeshBasicMaterial; material.map?.dispose(); material.map=texture; material.color.set(0xffffff); material.needsUpdate=true;
+  screen.userData.video = undefined;
+  screen.userData.activate = () => window.dispatchEvent(new Event("vrspace-toggle-menu"));
 }
 function makeRemoteAvatar(
   name: string,

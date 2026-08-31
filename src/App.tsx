@@ -5,6 +5,7 @@ import {
   Camera,
   Compass,
   Headphones,
+  LogOut,
   MessageCircle,
   Mic,
   MicOff,
@@ -28,7 +29,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "31";
+const BUILD_ID = "32";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
@@ -347,6 +348,17 @@ export default function App() {
     openWorldPanel = (section?: "people" | "chat") => {
       setPanel(true);
       if (section) window.setTimeout(() => document.getElementById(`world-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    },
+    logout = () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: null }));
+      localStorage.removeItem("davespace-name");
+      setStream(null);
+      setMic(false);
+      setPanel(false);
+      setName("");
+      setScreen("profile");
     };
   if (screen === "boot")
     return (
@@ -569,6 +581,10 @@ export default function App() {
         <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
           <Settings />
           SETTINGS
+        </button>
+        <button className="logout-button" onClick={logout}>
+          <LogOut />
+          LOG OUT
         </button>
       </aside>
       <main>

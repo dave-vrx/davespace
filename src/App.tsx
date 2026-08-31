@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   CalendarDays,
@@ -24,7 +24,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-xr-menu-memory-fix-18";
+const BUILD_ID = "2026-08-31-microphone-release-19";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -105,6 +105,20 @@ export default function App() {
     [online, setOnline] = useState(1),
     [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
   const [isMobile, setIsMobile] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  useEffect(() => { streamRef.current = stream; }, [stream]);
+  useEffect(() => {
+    const releaseMicrophone = () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+    window.addEventListener("pagehide", releaseMicrophone);
+    window.addEventListener("beforeunload", releaseMicrophone);
+    return () => {
+      window.removeEventListener("pagehide", releaseMicrophone);
+      window.removeEventListener("beforeunload", releaseMicrophone);
+    };
+  }, []);
   useEffect(() => {
     const query = matchMedia("(pointer: coarse), (max-width: 760px)");
     const update = () => setIsMobile(query.matches);
@@ -223,7 +237,14 @@ export default function App() {
       setWorld(id);
       setScreen("world");
     },
-    exit = useCallback(() => setScreen("hub"), []),
+    exit = useCallback(() => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      window.dispatchEvent(new CustomEvent("davespace-audio-stream", { detail: null }));
+      setStream(null);
+      setMic(false);
+      setScreen("hub");
+    }, []),
     send = () => {
       if (draft.trim()) {
         const message = `${name}: ${draft.trim()}`;

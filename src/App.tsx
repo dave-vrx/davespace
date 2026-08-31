@@ -25,7 +25,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-pc-third-person-22";
+const BUILD_ID = "2026-08-31-menu-clock-polish-23";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -106,8 +106,17 @@ export default function App() {
     [online, setOnline] = useState(1),
     [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
   const [isMobile, setIsMobile] = useState(false);
+  const [localTime, setLocalTime] = useState(() =>
+    new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date()),
+  );
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { streamRef.current = stream; }, [stream]);
+  useEffect(() => {
+    const updateClock = () =>
+      setLocalTime(new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date()));
+    const timer = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => {
     const releaseMicrophone = () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -262,6 +271,10 @@ export default function App() {
         setFriends((f) => [...f, [v.trim(), "Request sent", "#70f1bd"]]);
         setToast("Friend request sent");
       }
+    },
+    openWorldPanel = (section?: "people" | "chat") => {
+      setPanel(true);
+      if (section) window.setTimeout(() => document.getElementById(`world-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     };
   if (screen === "boot")
     return (
@@ -325,6 +338,10 @@ export default function App() {
               {online > 1 ? "PEER CONNECTED" : "WAITING FOR PEER"}
             </small>
           </span>
+          <div className="world-identity" aria-label={`Signed in as ${name}, local time ${localTime}`}>
+            <b>{name[0]?.toUpperCase()}</b>
+            <span><strong>{name}</strong><small>{localTime} · LOCAL</small></span>
+          </div>
           <button onClick={exit}>LEAVE WORLD</button>
         </div>
         <div className="world-controls">
@@ -341,11 +358,11 @@ export default function App() {
             <Volume2 />
             <span>ENABLE AUDIO</span>
           </button>
-          <button onClick={() => setPanel((v) => !v)}>
+          <button className={panel ? "active" : ""} onClick={() => openWorldPanel("people")}>
             <Users />
             <span>PEOPLE</span>
           </button>
-          <button onClick={() => setPanel((v) => !v)}>
+          <button className={panel ? "active" : ""} onClick={() => openWorldPanel("chat")}>
             <MessageCircle />
             <span>CHAT</span>
           </button>
@@ -411,11 +428,11 @@ export default function App() {
                 <button onClick={toggleMic}>{mic ? "MUTE MICROPHONE" : "ENABLE MICROPHONE"}</button>
                 <button onClick={() => join(worlds[(worlds.findIndex((item) => item.id === world) + 1) % worlds.length].id)}>NEXT WORLD</button>
                 <button onClick={() => window.dispatchEvent(new Event("davespace-cycle-avatar"))}>NEXT AVATAR</button>
-                <button onClick={exit}>LEAVE WORLD</button>
+                <button onClick={() => window.dispatchEvent(new Event("davespace-toggle-third-person"))}>CHANGE VIEW</button>
               </div>
             </section>
-            <Friends data={friends} add={add} />
-            <Chat {...{ chat, draft, setDraft, send }} />
+            <div id="world-people"><Friends data={friends} add={add} /></div>
+            <div id="world-chat"><Chat {...{ chat, draft, setDraft, send }} /></div>
             <YouTubePlayer />
             <AvatarSelector selected={avatarId} select={(id) => { setAvatarId(id); localStorage.setItem("davespace-avatar", id); }} />
           </aside>
@@ -450,7 +467,7 @@ export default function App() {
           );
         })}
         <span />
-        <button onClick={() => setTab("settings")}>
+        <button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
           <Settings />
           SETTINGS
         </button>
@@ -466,6 +483,7 @@ export default function App() {
             </h1>
           </div>
           <div className="status">
+            <time dateTime={new Date().toISOString()}>{localTime} LOCAL</time>
             <i /> {online} ONLINE{" "}
             <button className={mic ? "live" : ""} onClick={toggleMic}>
               {mic ? <Mic /> : <MicOff />}

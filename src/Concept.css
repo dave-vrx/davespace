@@ -234,6 +234,18 @@
   border-radius: 12px;
   box-shadow: 0 0 24px #845cff88;
 }
+.world-identity { margin-left:auto; display:flex; align-items:center; gap:9px; padding:5px 10px 5px 6px; border:1px solid rgba(255,255,255,.13); border-radius:14px; background:rgba(7,10,25,.62); }
+.world-identity>b { width:31px; height:31px; display:grid; place-items:center; border-radius:10px; background:linear-gradient(135deg,#7857ff,#22d3c5); color:#fff; box-shadow:0 0 18px rgba(126,87,255,.42); }
+.world-identity>span { min-width:78px; }
+.world-identity>span strong { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+.world-identity>span small { margin-top:2px; color:#86f7dc!important; letter-spacing:.06em; }
+.world-top>button { margin-left:0!important; min-height:42px; padding-inline:14px!important; }
+.world-controls button { position:relative; min-height:56px; border-radius:12px; transition:background .16s,color .16s,transform .16s!important; }
+.world-controls button:hover,.world-controls button:focus-visible,.world-controls button.active { color:#fff!important; background:linear-gradient(145deg,rgba(126,87,255,.34),rgba(33,211,197,.16))!important; outline:none; }
+.world-controls button:focus-visible { box-shadow:0 0 0 2px #7f67ff,0 0 22px rgba(127,103,255,.5); }
+.world-controls button span { pointer-events:none; }
+.status time { padding:7px 9px; border:1px solid rgba(255,255,255,.12); border-radius:9px; color:#d7e0ff; font-variant-numeric:tabular-nums; letter-spacing:.05em; }
+.quick-panel .tool-row button:hover,.quick-panel .tool-row button:focus-visible { border-color:#8f7cff; box-shadow:0 8px 28px rgba(73,52,191,.34); outline:none; }
 @media (max-width: 1000px) {
   .world-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -263,4 +275,9 @@
   .hero-card {
     min-height: 420px;
   }
+  .world-identity { margin-left:auto; padding:4px; }
+  .world-identity>span { display:none; }
+  .world-identity>b { width:30px; height:30px; }
+  .world-top>button { min-height:38px; padding-inline:9px!important; }
+  .status time { display:none; }
 }

@@ -378,3 +378,4 @@ button:focus-visible{outline:2px solid var(--cosmic-aqua);outline-offset:3px}
 .brand-logo{display:block;width:100%;max-width:190px;height:auto;margin:0;filter:drop-shadow(0 10px 24px #5e4de744)}
 .hub>aside .logout-button{margin-top:6px!important;border:1px solid #ff708a24!important;color:#ff91a5!important;background:#ff557a0a!important}.hub>aside .logout-button:hover{border-color:#ff708a55!important;color:#fff!important;background:linear-gradient(105deg,#ef496f,#bd3e91)!important}
 @media(max-width:760px){.hub>aside .logout-button{display:flex!important}.hub>aside .logout-button{font-size:0!important}.hub>aside .logout-button svg{display:block!important;margin:auto!important}}
+.hero-card:after{content:none!important;display:none!important}

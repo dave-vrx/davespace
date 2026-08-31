@@ -166,8 +166,8 @@ export default function WorldScene({
       avatar.updateMatrixWorld(true);
       const left = avatar.getObjectByName("left-hand");
       const right = avatar.getObjectByName("right-hand");
-      if (left) left.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.l)));
-      if (right) right.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.r)));
+      if (left) left.position.fromArray(pose.l);
+      if (right) right.position.fromArray(pose.r);
       const remoteHead = avatar.getObjectByName("avatar-head");
       if (remoteHead && pose.h) {
         const localHead = new THREE.Vector3().fromArray(pose.h);
@@ -422,7 +422,10 @@ export default function WorldScene({
         const interactive = ray.intersectObjects(grab, false)[0]?.object as THREE.Mesh | undefined;
         if (interactive?.userData.activate) {
           interactive.userData.activate();
-          showHUDNotice(camera, "Fruit dropped!", "#ffd166");
+          if (interactive.userData.suika)
+            showHUDNotice(camera, "Fruit dropped!", "#ffd166");
+          else
+            showHUDNotice(camera, "Shared browser controls opened", "#72ffd0");
           return;
         }
       });
@@ -661,23 +664,11 @@ export default function WorldScene({
         if (headLocalPosition.y < .5 || headLocalPosition.y > 2.6)
           headLocalPosition.set(0, 1.7, 0);
         if (renderer.xr.isPresenting) {
-          grips[0].getWorldPosition(leftPosition);
-          grips[1].getWorldPosition(rightPosition);
+          leftPosition.copy(grips[0].position);
+          rightPosition.copy(grips[1].position);
         } else {
-          leftPosition
-            .copy(headPosition)
-            .add(
-              new THREE.Vector3(-0.32, -0.35, -0.18).applyQuaternion(
-                headQuaternion,
-              ),
-            );
-          rightPosition
-            .copy(headPosition)
-            .add(
-              new THREE.Vector3(0.32, -0.35, -0.18).applyQuaternion(
-                headQuaternion,
-              ),
-            );
+          leftPosition.set(-0.32, 1.35, -0.18);
+          rightPosition.set(0.32, 1.35, -0.18);
         }
         poseAction.send({
           p: rig.position.toArray(),
@@ -692,6 +683,15 @@ export default function WorldScene({
         o.rotation.y += dt * (i % 2 ? 0.5 : -0.5);
         o.position.y +=
           (Math.sin(t * 2 + i) - Math.sin((t - dt) * 2 + i)) * 0.025;
+      });
+      const viewerPosition = new THREE.Vector3();
+      (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(viewerPosition);
+      remoteAvatars.forEach((avatar) => {
+        const plate = avatar.getObjectByName("avatar-nameplate");
+        if (!plate) return;
+        const platePosition = new THREE.Vector3();
+        plate.getWorldPosition(platePosition);
+        plate.lookAt(viewerPosition.x, platePosition.y, viewerPosition.z);
       });
       weather?.update(t);
       const hoveredTargets: THREE.Mesh[] = [];
@@ -1156,15 +1156,17 @@ function makeRemoteAvatar(
   context.textBaseline = "middle";
   context.fillStyle = isAdmin ? "#ffd166" : "#70f1bd";
   context.fillText(isAdmin ? "★ ADMIN · DAVE" : name.slice(0, 20), 256, 66);
-  const label = new THREE.Sprite(
-    new THREE.SpriteMaterial({
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.8, .45),
+    new THREE.MeshBasicMaterial({
       map: new THREE.CanvasTexture(canvas),
       transparent: true,
       depthTest: false,
+      side: THREE.DoubleSide,
     }),
   );
-  label.position.y = 2.12;
-  label.scale.set(1.8, 0.45, 1);
+  label.name = "avatar-nameplate";
+  label.renderOrder = 1200;
   const spineAnchor = new THREE.Group();
   spineAnchor.name = "nameplate-spine-anchor";
   spineAnchor.position.y = 1.42;

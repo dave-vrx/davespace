@@ -24,7 +24,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-root-local-heads-20";
+const BUILD_ID = "2026-08-31-orbit-rebrand-root-rig-21";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -476,9 +476,10 @@ export default function App() {
                 <small>EXPLORE · CONNECT · BELONG</small>
                 <h2>Campfire</h2>
                 <p>
-                  A warm social clearing under the stars. Meet friends, watch
-                  videos and step into VR.
+                  Your bright, browser-native social universe. Meet friends,
+                  share media, build together and jump straight into WebXR.
                 </p>
+                <div className="hero-pills"><span>● LIVE VOICE</span><span>8 WORLDS</span><span>NO DOWNLOAD</span></div>
                 <button onClick={() => join("fireside")}>
                   <Headphones /> JOIN IN VR
                 </button>
@@ -486,7 +487,6 @@ export default function App() {
                   JOIN DESKTOP
                 </button>
               </div>
-              <div className="fire-mark">♨</div>
               <span>
                 <Users /> 12 ONLINE
               </span>

@@ -28,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-human-default-avatar-26";
+const BUILD_ID = "2026-08-31-cosmic-social-redesign-27";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
@@ -578,23 +578,24 @@ export default function App() {
         {tab === "discover" && (
           <>
             <section className="hero-card">
-              <div>
-                <small>EXPLORE · CONNECT · BELONG</small>
-                <h2>Campfire</h2>
+              <div className="hero-copy">
+                <div className="hero-eyebrow"><i /> DAVESPACE IS OPEN</div>
+                <h2>Your worlds.<br /><em>Your people.</em></h2>
                 <p>
-                  Your bright, browser-native social universe. Meet friends,
-                  share media, build together and jump straight into WebXR.
+                  A bright social universe that lives in your browser. Meet friends,
+                  share moments, create together and step straight into WebXR.
                 </p>
-                <div className="hero-pills"><span>● LIVE VOICE</span><span>8 WORLDS</span><span>NO DOWNLOAD</span></div>
+                <div className="hero-pills"><span>● LIVE VOICE</span><span>8 PLAYABLE WORLDS</span><span>PC · MOBILE · VR</span></div>
                 <button onClick={() => join("fireside")}>
-                  <Headphones /> JOIN IN VR
+                  <Headphones /> ENTER CAMPFIRE
                 </button>
-                <button className="desktop" onClick={() => join("fireside")}>
-                  JOIN DESKTOP
+                <button className="desktop" onClick={() => setTab("worlds")}>
+                  <Compass /> EXPLORE WORLDS
                 </button>
+                <div className="hero-stats"><span><b>{online}</b> LIVE NOW</span><span><b>24</b> WORLD IDEAS</span><span><b>0</b> DOWNLOADS</span></div>
               </div>
               <span>
-                <Users /> 12 ONLINE
+                <Users /> PUBLIC SOCIAL HUB
               </span>
             </section>
             <WorldCards join={join} />

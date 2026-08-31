@@ -24,12 +24,16 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-30-ray-menu-actions-14";
+const BUILD_ID = "2026-08-31-hand-pages-mobile-play-15";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
   { id: "coral", name: "Coral Scout", note: "Explorer rig variant", tint: "#ff648d" },
   { id: "mint", name: "Mint Voyager", note: "Explorer rig variant", tint: "#38e0bd" },
+  { id: "sapphire", name: "Sapphire Pilot", note: "Explorer rig variant", tint: "#3b82f6" },
+  { id: "solar", name: "Solar Ranger", note: "Explorer rig variant", tint: "#ffd166" },
+  { id: "violet", name: "Violet Drifter", note: "Explorer rig variant", tint: "#a56bff" },
+  { id: "arctic", name: "Arctic Walker", note: "Explorer rig variant", tint: "#e8f4ff" },
 ];
 const worlds: {
   id: WorldId;
@@ -100,6 +104,16 @@ export default function App() {
     [toast, setToast] = useState(""),
     [online, setOnline] = useState(1),
     [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const query = matchMedia("(pointer: coarse), (max-width: 760px)");
+    const update = () => setIsMobile(query.matches);
+    update(); query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("davespace-avatar-changed", { detail: avatarId }));
+  }, [avatarId]);
   useEffect(() => {
     const url = new URL(location.href);
     if (url.searchParams.get("build") !== BUILD_ID) {
@@ -269,7 +283,7 @@ export default function App() {
     );
   if (screen === "world")
     return (
-      <div className="world-wrap">
+      <div className={`world-wrap ${isMobile ? "mobile-device" : ""}`}>
         <WorldScene
           world={world}
           playerName={name}
@@ -359,6 +373,7 @@ export default function App() {
             </button>
           ))}
         </div>
+        <button className="mobile-jump" onPointerDown={() => window.dispatchEvent(new CustomEvent("vrspace-mobile-move", { detail: { direction: "jump", active: true } }))} onPointerUp={() => window.dispatchEvent(new CustomEvent("vrspace-mobile-move", { detail: { direction: "jump", active: false } }))}>JUMP</button>
         {panel && (
           <aside className="social-panel">
             <button className="close" onClick={() => setPanel(false)}>

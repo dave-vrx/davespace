@@ -1,7 +1,9 @@
 .mobile-menu,
-.mobile-pad {
+.mobile-pad,
+.mobile-jump {
   display: none;
 }
+.mobile-jump { position:fixed; z-index:13; right:20px; bottom:150px; width:70px; height:70px; border:1px solid #ff7aaa; border-radius:50%; color:white; background:#7b315fcc; font-weight:900; touch-action:none; }
 .mobile-menu {
   position: fixed;
   z-index: 12;
@@ -51,6 +53,7 @@
   .mobile-pad {
     display: grid;
   }
+  .mobile-jump { display:block; }
   .world-controls {
     display: none;
   }
@@ -58,6 +61,13 @@
     display: none;
   }
 }
+.mobile-device .world-top { top:max(8px,env(safe-area-inset-top)); left:8px; right:8px; width:auto!important; margin:0!important; padding:9px!important; }
+.mobile-device .world-top span small { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mobile-device .mobile-pad { left:max(14px,env(safe-area-inset-left)); bottom:max(18px,env(safe-area-inset-bottom)); }
+.mobile-device .mobile-menu { right:max(14px,env(safe-area-inset-right)); bottom:max(22px,env(safe-area-inset-bottom)); }
+.mobile-device .mobile-jump { right:max(18px,env(safe-area-inset-right)); bottom:90px; }
+.mobile-device .mic-overlay { bottom:26px; }
+.mobile-device .social-panel { inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important; width:auto!important; max-height:none!important; transform:none!important; border-radius:20px!important; padding:12px!important; }
 .youtube iframe {
   width: 100%;
   aspect-ratio: 16/9;

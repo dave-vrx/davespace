@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9affdc"/><stop offset="1" stop-color="#42c99e"/></linearGradient></defs>
-  <rect width="128" height="128" rx="34" fill="#071119"/>
-  <path d="M31 34h22l11 34 11-34h22L75 94H53L31 34Z" fill="url(#g)"/>
-  <path d="M26 23 13 64l13 41M102 23l13 41-13 41" fill="none" stroke="#6ff2bf" stroke-width="7" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="space" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse"><stop stop-color="#6c63ff"/><stop offset=".48" stop-color="#ff5f91"/><stop offset="1" stop-color="#29e2c2"/></linearGradient>
+    <radialGradient id="core"><stop stop-color="#fff"/><stop offset=".35" stop-color="#b8fff1"/><stop offset="1" stop-color="#685bff"/></radialGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="36" fill="#0b0e25" stroke="#ffffff" stroke-opacity=".12" stroke-width="4"/>
+  <circle cx="64" cy="64" r="25" fill="url(#core)"/>
+  <path d="M47 47h18c20 0 31 11 31 27S85 101 65 101H47V47Zm17 15v24h3c9 0 14-4 14-12s-5-12-14-12h-3Z" fill="#0b0e25"/>
+  <ellipse cx="64" cy="64" rx="51" ry="20" transform="rotate(-22 64 64)" fill="none" stroke="url(#space)" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="109" cy="44" r="7" fill="#ffd166"/>
 </svg>

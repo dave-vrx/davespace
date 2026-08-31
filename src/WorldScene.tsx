@@ -99,6 +99,7 @@ export default function WorldScene({
     const chatAction = room.makeAction<string>("chat");
     const browserAction = room.makeAction<string>("browser");
     const placeAction = room.makeAction<{ kind: "portal"; p: number[] }>("place");
+    const hitAction = room.makeAction<string>("hit");
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
     const remoteAvatarIds = new Map<string, string>();
@@ -221,6 +222,12 @@ export default function WorldScene({
     window.addEventListener("vrspace-enable-audio", unlockAudio);
     nameAction.send(playerName);
     avatarAction.send(avatarId);
+    let currentAvatarId = avatarId;
+    const changeLocalAvatar = (event: Event) => {
+      currentAvatarId = (event as CustomEvent<string>).detail;
+      avatarAction.send(currentAvatarId);
+    };
+    window.addEventListener("davespace-avatar-changed", changeLocalAvatar);
     let sharedAudioStream = audioStream;
     const micHUD = makeMicHUD(!sharedAudioStream);
     camera.add(micHUD);
@@ -245,12 +252,10 @@ export default function WorldScene({
       }
       xrMenu.visible = !xrMenu.visible;
       if (xrMenu.visible) {
-        const head = new THREE.Vector3();
-        renderer.xr.getCamera().getWorldPosition(head);
-        grips[0].getWorldPosition(xrMenu.position);
-        xrMenu.position.add(new THREE.Vector3(0, 0.28, -0.12).applyQuaternion(rig.quaternion));
-        xrMenu.lookAt(head);
-        xrMenu.scale.setScalar(0.68);
+        grips[0].add(xrMenu);
+        xrMenu.position.set(.16, .2, -.34);
+        xrMenu.rotation.set(0, 0, 0);
+        xrMenu.scale.setScalar(.52);
       }
     };
     const controllers = [
@@ -260,30 +265,48 @@ export default function WorldScene({
       grips = [renderer.xr.getControllerGrip(0), renderer.xr.getControllerGrip(1)],
       ray = new THREE.Raycaster();
     const portals: THREE.Mesh[] = [];
+    const projectiles: THREE.Mesh[] = [];
+    hitAction.onMessage = () => {
+      showHUDNotice(camera, "TAGGED! Respawning…", "#ff5f91");
+      rig.position.y += 1.2;
+      window.setTimeout(() => rig.position.set(Math.cos(spawnAngle) * 2.4, 0, Math.sin(spawnAngle) * 2.4), 900);
+    };
     let comfortMode = false;
     const menuTargets: THREE.Mesh[] = [];
-    xrMenu.traverse((object) => {
-      if ((object as THREE.Mesh).isMesh && object.userData.action)
-        menuTargets.push(object as THREE.Mesh);
-    });
+    const refreshMenuTargets = () => {
+      menuTargets.length = 0;
+      xrMenu.traverse((object) => {
+        if ((object as THREE.Mesh).isMesh && object.userData.action)
+          menuTargets.push(object as THREE.Mesh);
+      });
+    };
+    refreshMenuTargets();
     const runMenuAction = (action: string) => {
+      if (action.startsWith("page:")) {
+        renderXRMenuPage(xrMenu, action.slice(5), playerName);
+        refreshMenuTargets();
+        return;
+      }
+      if (action.startsWith("world:")) {
+        window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: action.slice(6) as WorldId }));
+        return;
+      }
+      if (action.startsWith("avatar:")) {
+        const selected = action.slice(7);
+        window.dispatchEvent(new CustomEvent("davespace-avatar-changed", { detail: selected }));
+        showXRNotice(xrMenu, "AVATAR EQUIPPED", selected.toUpperCase());
+        return;
+      }
       if (action === "voice") window.dispatchEvent(new Event("davespace-toggle-mic"));
-      if (action === "social") showXRNotice(xrMenu, "FRIENDS ONLINE", "NovaSkye · PixelFox · OrbitDave");
-      if (action === "worlds") {
-        const order: WorldId[] = ["fireside", "neon", "garden", "studio", "ocean", "moon", "arcade", "gallery"];
-        window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: order[(order.indexOf(world) + 1) % order.length] }));
-      }
+      if (action === "friends") showXRNotice(xrMenu, "FRIENDS ONLINE", "NovaSkye · PixelFox · OrbitDave");
       if (action === "messages") showXRNotice(xrMenu, "MESSAGES", "NovaSkye: Meet you by the fire!");
-      if (action === "avatar") {
-        window.dispatchEvent(new Event("davespace-cycle-avatar"));
-        showXRNotice(xrMenu, "AVATAR CHANGED", "Your next verified avatar is now equipped");
-      }
-      if (action === "settings") {
+      if (action === "comfort") {
         comfortMode = !comfortMode;
         showXRNotice(xrMenu, "COMFORT MODE", comfortMode ? "ON · reduced movement speed" : "OFF · full movement speed");
       }
       if (action === "spawn-cube") spawnTool("cube", scene, grab);
       if (action === "spawn-pen") spawnTool("pen", scene, grab);
+      if (action === "spawn-blaster") spawnTool("blaster", scene, grab);
       if (action === "spawn-target") spawnTool("target", scene, grab);
       if (action === "spawn-portal") {
         const portal = spawnTool("portal", scene, grab);
@@ -292,6 +315,7 @@ export default function WorldScene({
       }
       if (action === "leave") onExit();
       if (action === "close") xrMenu.visible = false;
+      if (action === "recenter") showXRNotice(xrMenu, "MENU RECENTERED", "Raise your left hand to position it");
     };
     placeAction.onMessage = (placed) => {
       if (placed.kind === "portal") {
@@ -368,6 +392,21 @@ export default function WorldScene({
             return;
           }
         }
+        if (held?.userData.tool === "blaster") {
+          const bolt = new THREE.Mesh(new THREE.SphereGeometry(.045, 8, 6), M(0xffd166, 2));
+          c.getWorldPosition(bolt.position);
+          bolt.userData.velocity = ray.ray.direction.clone().multiplyScalar(11);
+          scene.add(bolt); projectiles.push(bolt); return;
+        }
+        const interactive = ray.intersectObjects(grab, false)[0]?.object as THREE.Mesh | undefined;
+        if (interactive?.userData.activate) {
+          interactive.userData.activate();
+          showHUDNotice(camera, "Fruit dropped!", "#ffd166");
+          return;
+        }
+      });
+      c.addEventListener("squeezestart", () => {
+        ray.setFromXRController(c);
         const h = ray.intersectObjects(grab)[0];
         if (h) {
           held = h.object as THREE.Mesh;
@@ -375,7 +414,7 @@ export default function WorldScene({
           c.attach(held);
         }
       });
-      c.addEventListener("selectend", () => {
+      c.addEventListener("squeezeend", () => {
         if (held && parent) {
           parent.attach(held);
           held = null;
@@ -487,6 +526,7 @@ export default function WorldScene({
     resize();
     const clock = new THREE.Clock();
     let lastPose = 0,
+      lastTimeSave = 0,
       yWasPressed = false,
       xWasPressed = false;
     const headPosition = new THREE.Vector3(),
@@ -496,6 +536,11 @@ export default function WorldScene({
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.05),
         t = clock.elapsedTime;
+      if (t - lastTimeSave > 10) {
+        const seconds = Number(localStorage.getItem("davespace-world-seconds") ?? 0) + 10;
+        localStorage.setItem("davespace-world-seconds", String(seconds));
+        lastTimeSave = t;
+      }
       if (!renderer.xr.isPresenting) {
         camera.rotation.order = "YXZ";
         camera.rotation.set(pitch, yaw, 0);
@@ -566,11 +611,11 @@ export default function WorldScene({
           (comfortMode ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
       if (forward) rig.position.addScaledVector(f, forward * speed);
       if (side) rig.position.addScaledVector(r, side * speed);
-      if (keys.has("Space") && !jumpWasPressed && rig.position.y <= 0.001) {
+      if ((keys.has("Space") || mobile.has("jump")) && !jumpWasPressed && rig.position.y <= 0.001) {
         verticalVelocity = 5.4;
         jumpWasPressed = true;
       }
-      if (!keys.has("Space") && !renderer.xr.isPresenting)
+      if (!keys.has("Space") && !mobile.has("jump") && !renderer.xr.isPresenting)
         jumpWasPressed = false;
       verticalVelocity -= 13.5 * dt;
       rig.position.y += verticalVelocity * dt;
@@ -646,6 +691,16 @@ export default function WorldScene({
           window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: order[(order.indexOf(world) + 1) % order.length] }));
         }
       }
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const bolt = projectiles[i];
+        bolt.position.addScaledVector(bolt.userData.velocity, dt);
+        const hit = [...remoteAvatars.entries()].find(([, avatar]) => avatar.position.distanceTo(bolt.position) < .65);
+        if (hit) {
+          hitAction.send("tagged", { target: hit[0] });
+          scene.remove(bolt); projectiles.splice(i, 1); continue;
+        }
+        if (bolt.position.length() > 70) { scene.remove(bolt); projectiles.splice(i, 1); }
+      }
       renderer.render(scene, camera);
     });
     return () => {
@@ -660,12 +715,13 @@ export default function WorldScene({
       window.removeEventListener("vrspace-mobile-move", mobileMove);
       window.removeEventListener("vrspace-enable-audio", unlockAudio);
       window.removeEventListener("davespace-audio-stream", changeAudioStream);
+      window.removeEventListener("davespace-avatar-changed", changeLocalAvatar);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       renderer.dispose();
       root.replaceChildren();
     };
-  }, [world, playerName, avatarId, onExit]);
+  }, [world, playerName, onExit]);
   return <div className="world-scene" ref={host} />;
 }
 function build(
@@ -734,14 +790,17 @@ function build(
     }
     const moon = new THREE.Mesh(new THREE.SphereGeometry(1.25, 24, 16), M(0xdde9ff, 1.1));
     moon.position.set(-10, 12, -22); s.add(moon);
-    [[-4, -1, "Ember", "Welcome to Campfire. The weather changes around us."], [4, -2, "Milo", "Try the shared browser or drop a portal from your hand menu."], [0, -6, "Nova", "I am a local guide NPC. Double click me to talk."]].forEach(([x, z, name, line]) => {
-      const npc = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(.2, .7, 5, 10), M(0x6257ff, .16)); body.position.y = .9;
-      const head = new THREE.Mesh(new THREE.SphereGeometry(.18, 14, 10), M(0x17203a, .25)); head.position.y = 1.55; head.userData.npc = true; head.userData.line = line;
-      const label = textSprite(String(name), "#72ffd0", .75, .16); label.position.y = 1.95;
-      npc.add(body, head, label); npc.position.set(Number(x), 0, Number(z)); s.add(npc); g.push(head);
+    [[-4, -1, 0xffd166], [4, -2, 0x72ffd0], [0, -6, 0xff6f9f]].forEach(([x, z, color], index) => {
+      const pet = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(.22, 14, 10), M(Number(color), .2));
+      body.scale.set(1.35, .8, 1); body.position.y = .28;
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(.08, .22, 5), M(Number(color), .12)); ear.position.set(-.1, .52, 0);
+      const ear2 = ear.clone(); ear2.position.x = .1;
+      const eyes = textSprite("••", "#101329", .16, .07); eyes.position.set(0, .31, -.2);
+      pet.add(body, ear, ear2, eyes); pet.position.set(Number(x), 0, Number(z)); pet.userData.petIndex = index;
+      s.add(pet); a.push(pet);
     });
-    screen(s);
+    screen(s, g, true);
   }
   if (w === "neon") {
     for (let i = 0; i < 18; i++) {
@@ -821,7 +880,7 @@ function build(
       s.add(o);
       g.push(o);
     }
-    screen(s);
+    screen(s, g);
   }
   if (["ocean", "moon", "arcade", "gallery"].includes(w)) {
     const colors: Record<string, number[]> = {
@@ -839,7 +898,7 @@ function build(
       object.position.set(Math.cos(angle) * radius, .7 + (i % 4) * .45, Math.sin(angle) * radius - 3);
       object.castShadow = true; s.add(object); a.push(object);
     }
-    if (w === "arcade" || w === "gallery") screen(s);
+    if (w === "arcade" || w === "gallery") screen(s, g);
   }
 }
 function addAtmosphere(scene: THREE.Scene, world: WorldId) {
@@ -907,7 +966,7 @@ function makeCampfireWeather(scene: THREE.Scene) {
     }
   }};
 }
-function screen(s: THREE.Scene) {
+function screen(s: THREE.Scene, grab: THREE.Mesh[], suika = false) {
   const f = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.2), M(0x101b28));
   f.position.set(0, 2.5, -9);
   s.add(f);
@@ -917,6 +976,23 @@ function screen(s: THREE.Scene) {
   );
   d.position.set(0, 2.5, -8.88);
   s.add(d);
+  if (suika) {
+    const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 360;
+    const ctx = canvas.getContext("2d")!; let score = Number(localStorage.getItem("davespace-suika-score") ?? 0);
+    const draw = () => {
+      const gradient = ctx.createLinearGradient(0,0,640,360); gradient.addColorStop(0,"#35236f"); gradient.addColorStop(1,"#112d42");
+      ctx.fillStyle=gradient; ctx.fillRect(0,0,640,360); ctx.fillStyle="#fff"; ctx.font="900 34px system-ui"; ctx.fillText("SUIKA CAMP",28,48);
+      ctx.fillStyle="#72ffd0"; ctx.font="700 20px system-ui"; ctx.fillText(`SCORE  ${score}`,470,45);
+      const fruit=["🍒","🍓","🍇","🍋","🍊","🍎","🍐","🍑","🍍","🍈","🍉"];
+      ctx.font="48px serif"; for(let i=0;i<18;i++) ctx.fillText(fruit[(i+score)%fruit.length],35+(i%9)*66,125+Math.floor(i/9)*90+(i%3)*10);
+      const minutes=Math.floor(Number(localStorage.getItem("davespace-world-seconds")??0)/60);
+      ctx.fillStyle="#ffd166"; ctx.font="800 18px system-ui"; ctx.fillText(`POINT + TRIGGER TO DROP · TIME IN WORLDS ${minutes}m`,28,335);
+    };
+    draw(); const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace;
+    (d.material as THREE.MeshBasicMaterial).map=texture; (d.material as THREE.MeshBasicMaterial).color.set(0xffffff);
+    d.userData.suika=true; d.userData.activate=()=>{ score += 1 + Math.floor(Math.random()*8); localStorage.setItem("davespace-suika-score",String(score)); draw(); texture.needsUpdate=true; };
+    grab.push(d);
+  }
 }
 function makeRemoteAvatar(
   name: string,
@@ -924,6 +1000,7 @@ function makeRemoteAvatar(
   avatarId = "explorer",
 ) {
   const group = new THREE.Group();
+  const isAdmin = name.trim().toLowerCase() === "dave";
   const skin = M(0xd5a17d),
     cloth = M(0x536fff, 0.08);
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.205, 3), M(0x15172a, .18));
@@ -936,6 +1013,15 @@ function makeRemoteAvatar(
   visor.rotation.x = -.18;
   visor.position.set(0, .01, -.105);
   head.add(visor);
+  if (isAdmin) {
+    (head.material as THREE.MeshStandardMaterial).color.set(0xd5a17d);
+    visor.visible = false;
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(.19, 14, 8, 0, Math.PI * 2, 0, 1.4), M(0xffffff, .05));
+    hair.position.y = .1;
+    const beard = new THREE.Mesh(new THREE.ConeGeometry(.13, .28, 12), M(0xffffff, .04));
+    beard.position.set(0, -.18, -.12); beard.rotation.x = Math.PI;
+    head.add(hair, beard);
+  }
   const torso = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.2, 0.42, 5, 10),
     cloth,
@@ -954,9 +1040,10 @@ function makeRemoteAvatar(
       if ((part as THREE.Mesh).isMesh) {
         const mesh = part as THREE.Mesh;
         mesh.castShadow = true;
-        if (avatarId === "coral" || avatarId === "mint") {
+        const avatarTints: Record<string, number> = { coral: 0xff648d, mint: 0x38e0bd, sapphire: 0x3b82f6, solar: 0xffd166, violet: 0xa56bff, arctic: 0xe8f4ff };
+        if (avatarTints[avatarId] || isAdmin) {
           const material = (mesh.material as THREE.Material).clone() as THREE.MeshStandardMaterial;
-          if (material.color) material.color.lerp(new THREE.Color(avatarId === "coral" ? 0xff648d : 0x38e0bd), .38);
+          if (material.color) material.color.lerp(new THREE.Color(isAdmin ? 0xffffff : avatarTints[avatarId]), isAdmin ? .88 : .38);
           mesh.material = material;
         }
       }
@@ -988,11 +1075,12 @@ function makeRemoteAvatar(
   context.fillStyle = "rgba(4,12,18,.82)";
   context.roundRect(8, 8, 496, 112, 34);
   context.fill();
+  if (isAdmin) { context.strokeStyle = "#ffd166"; context.lineWidth = 8; context.stroke(); }
   context.font = "700 48px system-ui";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillStyle = "#70f1bd";
-  context.fillText(name.slice(0, 20), 256, 66);
+  context.fillStyle = isAdmin ? "#ffd166" : "#70f1bd";
+  context.fillText(isAdmin ? "★ ADMIN · DAVE" : name.slice(0, 20), 256, 66);
   const label = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: new THREE.CanvasTexture(canvas),
@@ -1034,6 +1122,12 @@ function curlControllerHand(
 function makeXRMenu(playerName: string) {
   const group = new THREE.Group();
   group.name = "davespace-xr-dashboard";
+  renderXRMenuPage(group, "home", playerName);
+  return group;
+}
+
+function renderXRMenuPage(group: THREE.Group, page: string, playerName: string) {
+  group.clear();
   const panel = new THREE.Mesh(
     new THREE.PlaneGeometry(1.5, 1.32),
     new THREE.MeshBasicMaterial({
@@ -1050,40 +1144,39 @@ function makeXRMenu(playerName: string) {
   );
   glow.position.z = -0.006;
   group.add(glow);
-  (
-    [
-      ["worlds", "◈  WORLDS"],
-      ["social", "◎  FRIENDS"],
-      ["messages", "✦  MESSAGES"],
-      ["voice", "◉  VOICE"],
-      ["spawn-pen", "✎  SPAWN PEN"],
-      ["spawn-cube", "⬡  SPAWN PROP"],
-      ["spawn-portal", "◉  DROP PORTAL"],
-      ["leave", "↗  LEAVE WORLD"],
-      ["avatar", "♙  AVATAR"],
-      ["settings", "⚙  SETTINGS"],
-    ] as const
-  ).forEach(([action, label], index) => {
+  const pages: Record<string, [string, string][]> = {
+    home: [["page:worlds","◈  WORLDS"],["page:social","◎  SOCIAL"],["page:create","✦  CREATE"],["page:avatar","♙  AVATAR"],["page:settings","⚙  SETTINGS"],["voice","◉  VOICE"],["leave","↗  LEAVE"],["close","×  CLOSE"]],
+    worlds: [["world:fireside","🔥 CAMPFIRE"],["world:neon","◆ NEON"],["world:garden","✦ GARDEN"],["world:studio","⬡ STUDIO"],["world:ocean","≈ OCEAN"],["world:moon","◐ MOON"],["world:arcade","✣ ARCADE"],["world:gallery","◇ GALLERY"],["page:home","← BACK"]],
+    social: [["friends","◎ FRIENDS ONLINE"],["messages","✦ MESSAGES"],["voice","◉ VOICE TOGGLE"],["page:home","← BACK"]],
+    create: [["spawn-pen","✎ SPAWN PEN"],["spawn-cube","⬡ SPAWN BLOCK"],["spawn-portal","◉ DROP PORTAL"],["spawn-blaster","⚡ BLASTER"],["page:home","← BACK"]],
+    avatar: [["avatar:explorer","CAMP EXPLORER"],["avatar:striker","NIGHT STRIKER"],["avatar:coral","CORAL SCOUT"],["avatar:mint","MINT VOYAGER"],["avatar:sapphire","SAPPHIRE PILOT"],["avatar:solar","SOLAR RANGER"],["avatar:violet","VIOLET DRIFTER"],["avatar:arctic","ARCTIC WALKER"],["page:home","← BACK"]],
+    settings: [["comfort","COMFORT MODE"],["voice","MICROPHONE"],["recenter","RECENTER MENU"],["page:home","← BACK"]],
+  };
+  const title = textSprite(page === "home" ? `DAVESPACE · ${playerName}` : page.toUpperCase(), "#ffffff", .72, .08);
+  title.position.set(0, .47, .02); group.add(title);
+  (pages[page] ?? pages.home).forEach(([action, label], index) => {
     const button = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.62, 0.145),
+      new THREE.PlaneGeometry(0.62, 0.17),
       new THREE.MeshBasicMaterial({
-        map: makeMenuButton(label, action === "leave" ? "danger" : index < 4 ? "primary" : "tool"),
+        map: makeMenuButton(label, action === "leave" ? "danger" : action.includes("back") ? "tool" : "primary"),
         transparent: true,
         side: THREE.DoubleSide,
       }),
     );
     button.position.set(
       index % 2 ? 0.34 : -0.34,
-      0.22 - Math.floor(index / 2) * 0.18,
+      0.27 - Math.floor(index / 2) * 0.205,
       0.012,
     );
     button.userData.action = action;
     group.add(button);
   });
-  const footer = textSprite("Y  CLOSE     X  MUTE     TRIGGER  SELECT", "#a9b4da", 0.78, 0.045);
-  footer.position.set(0, -0.59, 0.022);
-  group.add(footer);
-  return group;
+  if ((pages[page] ?? pages.home).length < 9) {
+    const footer = textSprite("Y  CLOSE     X  MUTE     TRIGGER  SELECT", "#a9b4da", 0.78, 0.045);
+    footer.position.set(0, -0.59, 0.022);
+    group.add(footer);
+  }
+  group.userData.page = page;
 }
 
 function makeMenuSurface(playerName: string) {
@@ -1191,9 +1284,11 @@ function makeMicTexture(muted: boolean) {
   return texture;
 }
 
-function spawnTool(kind: "cube" | "pen" | "target" | "portal", scene: THREE.Scene, grab: THREE.Mesh[]) {
+function spawnTool(kind: "cube" | "pen" | "target" | "portal" | "blaster", scene: THREE.Scene, grab: THREE.Mesh[]) {
   const geometry = kind === "pen"
     ? new THREE.CylinderGeometry(0.025, 0.025, 0.48, 10)
+    : kind === "blaster"
+      ? new THREE.BoxGeometry(.12, .18, .48)
     : kind === "target" || kind === "portal"
       ? new THREE.TorusGeometry(0.42, 0.08, 10, 28)
       : new THREE.BoxGeometry(0.42, 0.42, 0.42);

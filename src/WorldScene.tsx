@@ -286,6 +286,12 @@ export default function WorldScene({
       });
     };
     refreshMenuTargets();
+    const transitionOutOfXR = (next: () => void) => {
+      xrMenu.visible = false;
+      const session = renderer.xr.getSession();
+      if (session) void session.end().catch(() => undefined).finally(next);
+      else next();
+    };
     const runMenuAction = (action: string) => {
       if (action.startsWith("page:")) {
         renderXRMenuPage(xrMenu, action.slice(5), playerName);
@@ -293,7 +299,8 @@ export default function WorldScene({
         return;
       }
       if (action.startsWith("world:")) {
-        window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: action.slice(6) as WorldId }));
+        const destination = action.slice(6) as WorldId;
+        transitionOutOfXR(() => window.dispatchEvent(new CustomEvent("davespace-change-world", { detail: destination })));
         return;
       }
       if (action.startsWith("avatar:")) {
@@ -318,7 +325,7 @@ export default function WorldScene({
         portals.push(portal);
         placeAction.send({ kind: "portal", p: portal.position.toArray() });
       }
-      if (action === "leave") onExit();
+      if (action === "leave") transitionOutOfXR(onExit);
       if (action === "close") xrMenu.visible = false;
       if (action === "recenter") showXRNotice(xrMenu, "MENU RECENTERED", "Raise your left hand to position it");
     };
@@ -393,7 +400,13 @@ export default function WorldScene({
           xrMenu.updateMatrixWorld(true);
           const menuHit = ray.intersectObjects(menuTargets, false)[0];
           if (menuHit) {
-            runMenuAction(menuHit.object.userData.action);
+            try {
+              runMenuAction(menuHit.object.userData.action);
+            } catch {
+              renderXRMenuPage(xrMenu, "home", playerName);
+              refreshMenuTargets();
+              showXRNotice(xrMenu, "MENU RECOVERED", "Please try that option again");
+            }
             return;
           }
         }
@@ -1178,6 +1191,17 @@ function makeXRMenu(playerName: string) {
 }
 
 function renderXRMenuPage(group: THREE.Group, page: string, playerName: string) {
+  group.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh && !(object as THREE.Sprite).isSprite) return;
+    if (mesh.isMesh) mesh.geometry?.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    materials.forEach((material) => {
+      const textured = material as THREE.MeshBasicMaterial;
+      textured.map?.dispose();
+      material.dispose();
+    });
+  });
   group.clear();
   const panel = new THREE.Mesh(
     new THREE.PlaneGeometry(1.5, 1.32),
@@ -1232,9 +1256,10 @@ function renderXRMenuPage(group: THREE.Group, page: string, playerName: string) 
 
 function makeMenuSurface(playerName: string) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1200;
-  canvas.height = 816;
+  canvas.width = 768;
+  canvas.height = 512;
   const ctx = canvas.getContext("2d")!;
+  ctx.scale(.64, .62745);
   const gradient = ctx.createLinearGradient(0, 0, 1200, 816);
   gradient.addColorStop(0, "#17143f");
   gradient.addColorStop(0.55, "#090d25");
@@ -1258,8 +1283,9 @@ function makeMenuSurface(playerName: string) {
 
 function makeMenuButton(label: string, tone: "primary" | "tool" | "danger") {
   const canvas = document.createElement("canvas");
-  canvas.width = 620; canvas.height = 150;
+  canvas.width = 384; canvas.height = 96;
   const ctx = canvas.getContext("2d")!;
+  ctx.scale(384 / 620, 96 / 150);
   const colors = tone === "danger" ? ["#6f2448", "#421a38"] : tone === "tool" ? ["#145168", "#133246"] : ["#4936a5", "#29245f"];
   const gradient = ctx.createLinearGradient(0, 0, 620, 150);
   gradient.addColorStop(0, colors[0]); gradient.addColorStop(1, colors[1]);

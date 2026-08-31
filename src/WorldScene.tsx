@@ -169,10 +169,13 @@ export default function WorldScene({
       if (left) left.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.l)));
       if (right) right.position.copy(avatar.worldToLocal(new THREE.Vector3().fromArray(pose.r)));
       const remoteHead = avatar.getObjectByName("avatar-head");
-      if (remoteHead && pose.h)
-        remoteHead.position.copy(
-          avatar.worldToLocal(new THREE.Vector3().fromArray(pose.h)),
-        );
+      if (remoteHead && pose.h) {
+        const localHead = new THREE.Vector3().fromArray(pose.h);
+        localHead.x = THREE.MathUtils.clamp(localHead.x, -1.5, 1.5);
+        localHead.y = THREE.MathUtils.clamp(localHead.y, .7, 2.4);
+        localHead.z = THREE.MathUtils.clamp(localHead.z, -1.5, 1.5);
+        remoteHead.position.copy(localHead);
+      }
       updateAvatarLimb(avatar, "left-arm", new THREE.Vector3(-0.22, 1.42, 0), left?.position);
       updateAvatarLimb(avatar, "right-arm", new THREE.Vector3(0.22, 1.42, 0), right?.position);
     };
@@ -550,6 +553,7 @@ export default function WorldScene({
       yWasPressed = false,
       xWasPressed = false;
     const headPosition = new THREE.Vector3(),
+      headLocalPosition = new THREE.Vector3(),
       headQuaternion = new THREE.Quaternion();
     const leftPosition = new THREE.Vector3(),
       rightPosition = new THREE.Vector3();
@@ -649,6 +653,13 @@ export default function WorldScene({
           : camera;
         head.getWorldPosition(headPosition);
         head.getWorldQuaternion(headQuaternion);
+        // Head is transmitted in locomotion-root space. Quest runtimes expose
+        // the XR camera in reference-space coordinates, while its world matrix
+        // may omit the application's rig translation.
+        headLocalPosition.copy(head.position);
+        if (!renderer.xr.isPresenting) headLocalPosition.copy(camera.position);
+        if (headLocalPosition.y < .5 || headLocalPosition.y > 2.6)
+          headLocalPosition.set(0, 1.7, 0);
         if (renderer.xr.isPresenting) {
           grips[0].getWorldPosition(leftPosition);
           grips[1].getWorldPosition(rightPosition);
@@ -670,7 +681,7 @@ export default function WorldScene({
         }
         poseAction.send({
           p: rig.position.toArray(),
-          h: headPosition.toArray(),
+          h: headLocalPosition.toArray(),
           q: headQuaternion.toArray(),
           l: leftPosition.toArray(),
           r: rightPosition.toArray(),

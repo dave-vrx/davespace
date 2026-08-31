@@ -28,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-cosmic-social-redesign-27";
+const BUILD_ID = "2026-08-31-smooth-movement-menu-28";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
@@ -484,13 +484,18 @@ export default function App() {
             <button className="close" onClick={() => setPanel(false)}>
               <X />
             </button>
+            <header className="world-menu-header">
+              <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
+              <div><small>DAVESPACE QUICK MENU</small><h1>Hi, {name}</h1><p>{worlds.find((item) => item.id === world)?.name} · {online} online · {localTime}</p></div>
+              <span><i /> LIVE</span>
+            </header>
             <section className="page-card quick-panel">
-              <small>QUICK MENU</small><h2>World controls</h2>
+              <small>QUICK ACTIONS</small><h2>What would you like to do?</h2>
               <div className="tool-row">
-                <button onClick={toggleMic}>{mic ? "MUTE MICROPHONE" : "ENABLE MICROPHONE"}</button>
-                <button onClick={() => join(worlds[(worlds.findIndex((item) => item.id === world) + 1) % worlds.length].id)}>NEXT WORLD</button>
-                <button onClick={() => window.dispatchEvent(new Event("davespace-cycle-avatar"))}>NEXT AVATAR</button>
-                <button onClick={() => window.dispatchEvent(new Event("davespace-toggle-third-person"))}>CHANGE VIEW</button>
+                <button onClick={toggleMic}>{mic ? <Mic /> : <MicOff />}<span>{mic ? "Mute" : "Unmute"}</span><small>Voice controls</small></button>
+                <button onClick={() => join(worlds[(worlds.findIndex((item) => item.id === world) + 1) % worlds.length].id)}><Compass /><span>Travel</span><small>Next world</small></button>
+                <button onClick={() => window.dispatchEvent(new Event("davespace-cycle-avatar"))}><UserRound /><span>Avatar</span><small>Change look</small></button>
+                <button onClick={() => window.dispatchEvent(new Event("davespace-toggle-third-person"))}><Camera /><span>Camera</span><small>Change view</small></button>
               </div>
             </section>
             <section id="world-people" className="page-card world-player-panel">

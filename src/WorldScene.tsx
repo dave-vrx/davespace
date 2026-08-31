@@ -500,6 +500,8 @@ export default function WorldScene({
     });
     const keys = new Set<string>();
     const mobile = new Set<string>();
+    const moveVelocity = new THREE.Vector3();
+    const desiredVelocity = new THREE.Vector3();
     let yaw = 0,
       pitch = 0,
       drag = false,
@@ -687,10 +689,18 @@ export default function WorldScene({
       }
       const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)),
         r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)),
-        speed =
-          (comfortMode ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6) * dt;
-      if (forward) rig.position.addScaledVector(f, forward * speed);
-      if (side) rig.position.addScaledVector(r, side * speed);
+        maxSpeed = comfortMode ? 2.6 : keys.has("ShiftLeft") || keys.has("ShiftRight") ? 7 : 4.6;
+      desiredVelocity.set(0, 0, 0)
+        .addScaledVector(f, forward)
+        .addScaledVector(r, side);
+      if (desiredVelocity.lengthSq() > 1) desiredVelocity.normalize();
+      desiredVelocity.multiplyScalar(maxSpeed);
+      const response = desiredVelocity.lengthSq() > .001
+        ? (renderer.xr.isPresenting ? 16 : 10)
+        : (renderer.xr.isPresenting ? 20 : 7);
+      moveVelocity.lerp(desiredVelocity, 1 - Math.exp(-response * dt));
+      if (moveVelocity.lengthSq() < .0001) moveVelocity.set(0, 0, 0);
+      rig.position.addScaledVector(moveVelocity, dt);
       if ((keys.has("Space") || mobile.has("jump")) && !jumpWasPressed && rig.position.y <= 0.001) {
         verticalVelocity = 5.4;
         jumpWasPressed = true;

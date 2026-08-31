@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   CalendarDays,
+  Camera,
   Compass,
   Headphones,
   MessageCircle,
@@ -24,7 +25,7 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-orbit-rebrand-root-rig-21";
+const BUILD_ID = "2026-08-31-pc-third-person-22";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -348,6 +349,10 @@ export default function App() {
             <MessageCircle />
             <span>CHAT</span>
           </button>
+          <button onClick={() => window.dispatchEvent(new Event("davespace-toggle-third-person"))}>
+            <Camera />
+            <span>CHANGE VIEW</span>
+          </button>
         </div>
         <button
           className="mobile-menu"
@@ -416,8 +421,7 @@ export default function App() {
           </aside>
         )}
         <div className="move-tip">
-          WASD MOVE · MOUSE LOOK · SHIFT SPRINT · DOUBLE CLICK OBJECTS · ESC
-          LEAVE
+          WASD MOVE · MOUSE LOOK · SHIFT SPRINT · V CHANGE VIEW · ESC LEAVE
         </div>
         {toast && <div className="toast">{toast}</div>}
       </div>

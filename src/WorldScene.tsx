@@ -250,6 +250,20 @@ export default function WorldScene({
     window.addEventListener("davespace-audio-stream", changeAudioStream);
     const body = makeBody();
     camera.add(body);
+    const localAvatar = makeRemoteAvatar(playerName, null, avatarId);
+    localAvatar.visible = false;
+    localAvatar.getObjectByName("nameplate-spine-anchor")!.visible = false;
+    rig.add(localAvatar);
+    let thirdPerson = false;
+    const toggleThirdPerson = () => {
+      if (renderer.xr.isPresenting) return;
+      thirdPerson = !thirdPerson;
+      localAvatar.visible = thirdPerson;
+      body.visible = !thirdPerson;
+      if (!thirdPerson) camera.position.set(0, 1.7, 0);
+      showHUDNotice(camera, thirdPerson ? "Third-person view" : "First-person view", "#72ffd0");
+    };
+    window.addEventListener("davespace-toggle-third-person", toggleThirdPerson);
     const xrMenu = makeXRMenu(playerName);
     xrMenu.visible = false;
     scene.add(xrMenu);
@@ -481,6 +495,7 @@ export default function WorldScene({
           e.preventDefault();
         keys.add(e.code);
         if (e.code === "KeyM") toggleXRMenu();
+        if (e.code === "KeyV" && !e.repeat) toggleThirdPerson();
         if (e.code === "Escape") toggleXRMenu();
       },
       ku = (e: KeyboardEvent) => keys.delete(e.code),
@@ -569,8 +584,15 @@ export default function WorldScene({
         lastTimeSave = t;
       }
       if (!renderer.xr.isPresenting) {
-        camera.rotation.order = "YXZ";
-        camera.rotation.set(pitch, yaw, 0);
+        if (thirdPerson) {
+          camera.position.set(Math.sin(yaw) * 4.4, 2.65 + pitch * .55, Math.cos(yaw) * 4.4);
+          camera.lookAt(0, 1.35, 0);
+          localAvatar.rotation.y = yaw;
+        } else {
+          camera.position.set(0, 1.7, 0);
+          camera.rotation.order = "YXZ";
+          camera.rotation.set(pitch, yaw, 0);
+        }
       }
       let forward =
           (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
@@ -654,13 +676,18 @@ export default function WorldScene({
       const head = renderer.xr.isPresenting
           ? renderer.xr.getCamera()
           : camera;
-        head.getWorldPosition(headPosition);
-        head.getWorldQuaternion(headQuaternion);
+        if (thirdPerson && !renderer.xr.isPresenting) {
+          headPosition.set(rig.position.x, rig.position.y + 1.7, rig.position.z);
+          headQuaternion.setFromEuler(new THREE.Euler(0, yaw, 0));
+        } else {
+          head.getWorldPosition(headPosition);
+          head.getWorldQuaternion(headQuaternion);
+        }
         // Head is transmitted in locomotion-root space. Quest runtimes expose
         // the XR camera in reference-space coordinates, while its world matrix
         // may omit the application's rig translation.
         headLocalPosition.copy(head.position);
-        if (!renderer.xr.isPresenting) headLocalPosition.copy(camera.position);
+        if (!renderer.xr.isPresenting) headLocalPosition.set(0, 1.7, 0);
         if (headLocalPosition.y < .5 || headLocalPosition.y > 2.6)
           headLocalPosition.set(0, 1.7, 0);
         if (renderer.xr.isPresenting) {
@@ -747,6 +774,7 @@ export default function WorldScene({
       window.removeEventListener("vrspace-enable-audio", unlockAudio);
       window.removeEventListener("davespace-audio-stream", changeAudioStream);
       window.removeEventListener("davespace-avatar-changed", changeLocalAvatar);
+      window.removeEventListener("davespace-toggle-third-person", toggleThirdPerson);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       const sharedVideo = sharedWorldScreen?.userData.video as HTMLVideoElement | undefined;

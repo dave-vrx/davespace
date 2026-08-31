@@ -11,7 +11,9 @@ import {
   Plus,
   Send,
   Settings,
+  Sparkles,
   Users,
+  UserPlus,
   UserRound,
   Volume2,
   Waypoints,
@@ -26,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-player-social-capsule-24";
+const BUILD_ID = "2026-08-31-world-lab-social-25";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -92,6 +94,30 @@ const seedFriends = [
   ["PixelFox", "Online", "#ff805d"],
   ["OrbitDave", "Away", "#43d7aa"],
 ];
+const worldIdeas = [
+  ["Skyrail City", "SOCIAL", "Ride shared trains between floating districts."], ["Tiny Town", "PLAY", "Everyone is toy-sized inside a giant home."],
+  ["Aurora Lodge", "COZY", "Snow, fireplaces, hot chocolate and northern lights."], ["Dragon Isles", "ADVENTURE", "Fly gliders between nests and ancient ruins."],
+  ["Zero-G Arena", "SPORT", "Team disc games with true zero-gravity movement."], ["Coral Kingdom", "DIVE", "Swim with rays through a living underwater city."],
+  ["Moonbase Café", "SOCIAL", "Low-gravity coffee shop overlooking Earth."], ["Pocket Raceway", "RACE", "Build and race tiny vehicles with friends."],
+  ["Haunted Hotel", "STORY", "Co-op puzzles across a shifting spooky hotel."], ["Cloud Cinema", "MEDIA", "Private watch parties on a cinema above the clouds."],
+  ["Paint Planet", "CREATE", "A shared world where every surface is drawable."], ["Robot Workshop", "BUILD", "Assemble robots and teach them simple routines."],
+  ["Dino Reserve", "EXPLORE", "A safe safari through a low-poly dinosaur habitat."], ["Rhythm Reactor", "MUSIC", "Collaborative rhythm games powering a neon core."],
+  ["Wizard Academy", "GAME", "Learn gesture spells and play team challenges."], ["Mini Golf Galaxy", "SPORT", "Portal-powered courses across tiny planets."],
+  ["Creator Market", "COMMUNITY", "Discover community worlds, avatars and props."], ["Meditation Cove", "WELLNESS", "Guided breathing, calm water and spatial sound."],
+  ["Comedy Cellar", "EVENT", "Open-mic stage with audience reactions and queues."], ["Museum of WebXR", "LEARN", "Interactive history and experiments from the open web."],
+  ["Pirate Bay", "ADVENTURE", "Crew a shared ship, find maps and battle sea monsters."], ["Space Farm", "COZY", "Grow alien plants and trade seeds with friends."],
+  ["Portal Plaza", "DISCOVER", "A walkable directory of live community worlds."], ["Festival Fields", "EVENT", "Multiple stages, fireworks, vendors and group photos."],
+] as const;
+const platformIdeas = [
+  "One-click nearby friend requests", "Friend groups and favourite circles", "Invite-only and friends-plus instances", "Join-friend and request-invite controls",
+  "Spatial voice zones and private whisper bubbles", "Per-user volume, mute and block", "Emoji reactions above avatars", "Status text and pronouns",
+  "Avatar favourites and recent avatars", "Full-body IK calibration", "Face and eye tracking when available", "Desktop emotes and gesture wheel",
+  "Persistent world objects", "Undo/redo and multi-select building", "Prefab library and community assets", "World permissions and collaborator roles",
+  "Portal history and saved destinations", "Event calendar with reminders", "World favourites and recently visited", "Community world ratings and safety reports",
+  "Shared cameras, selfies and group photos", "Spatial drawing with saved canvases", "Screen sharing and synchronized playlists", "Board games and reusable multiplayer toys",
+  "Achievements and exploration badges", "World quests and scavenger hunts", "Accessibility captions and speech bubbles", "Comfort turning and locomotion profiles",
+  "Creator analytics and crash reports", "Offline world preview mode", "PWA install and push notifications", "Unity-to-WebXR upload validation",
+] as const;
 export default function App() {
   const [screen, setScreen] = useState<Screen>("boot"),
     [tab, setTab] = useState<Tab>("discover"),
@@ -462,14 +488,16 @@ export default function App() {
             <section id="world-people" className="page-card world-player-panel">
               <small>PEOPLE HERE</small>
               <h2>Players in this world</h2>
-              <button className="world-player-row self" type="button">
+              <div className="world-player-row self">
                 <b>{name[0]?.toUpperCase()}</b><span><strong>{name}</strong><small>YOU · {avatarId.toUpperCase()}</small></span>
-              </button>
+              </div>
               {worldPlayers.length === 0 && <p className="player-empty">Waiting for another player to join…</p>}
               {worldPlayers.map((player) => (
-                <button key={player.peerId} className={`world-player-row ${selectedPlayer?.peerId === player.peerId ? "selected" : ""}`} onClick={() => selectWorldPlayer(player)}>
-                  <b>{player.name[0]?.toUpperCase()}</b><span><strong>{player.name}</strong><small>ONLINE · {player.avatarId.toUpperCase()}</small></span><em>VIEW</em>
-                </button>
+                <div key={player.peerId} role="button" tabIndex={0} className={`world-player-row ${selectedPlayer?.peerId === player.peerId ? "selected" : ""}`} onClick={() => selectWorldPlayer(player)} onKeyDown={(event) => event.key === "Enter" && selectWorldPlayer(player)}>
+                  <b>{player.name[0]?.toUpperCase()}</b><span><strong>{player.name}</strong><small>ONLINE · {player.avatarId.toUpperCase()}</small></span>
+                  <button className="quick-friend" onClick={(event) => { event.stopPropagation(); addPlayerFriend(player); }}><UserPlus /> ADD</button>
+                  <em>VIEW</em>
+                </div>
               ))}
               {selectedPlayer && (
                 <div className="player-details">
@@ -567,6 +595,7 @@ export default function App() {
         {tab === "worlds" && (
           <section className="page-card">
             <WorldCards join={join} />
+            <IdeasBoard />
           </section>
         )}
         {tab === "events" && <Events join={join} />}
@@ -696,6 +725,29 @@ function Friends({ data, add }: { data: string[][]; add: () => void }) {
         </div>
       ))}
     </>
+  );
+}
+function IdeasBoard() {
+  const [saved, setSaved] = useState<string[]>(() => JSON.parse(localStorage.getItem("davespace-saved-ideas") ?? "[]"));
+  const toggle = (title: string) => setSaved((current) => {
+    const next = current.includes(title) ? current.filter((item) => item !== title) : [...current, title];
+    localStorage.setItem("davespace-saved-ideas", JSON.stringify(next));
+    return next;
+  });
+  return (
+    <section className="ideas-board">
+      <div className="ideas-heading"><div><small>DAVESPACE WORLD LAB</small><h2>What we could build next</h2><p>Save the concepts you like most. Your choices stay on this device.</p></div><Sparkles /></div>
+      <div className="idea-grid">
+        {worldIdeas.map(([title, tag, description], index) => (
+          <article key={title} style={{ "--idea-hue": `${(index * 31 + 245) % 360}` } as React.CSSProperties}>
+            <div><span>{tag}</span><b>{String(index + 1).padStart(2, "0")}</b></div>
+            <h3>{title}</h3><p>{description}</p>
+            <button className={saved.includes(title) ? "saved" : ""} onClick={() => toggle(title)}>{saved.includes(title) ? "★ SAVED" : "☆ SAVE IDEA"}</button>
+          </article>
+        ))}
+      </div>
+      <div className="feature-ideas"><small>PLATFORM IDEA BANK · {platformIdeas.length} FEATURES</small><h2>Social, creator and comfort ideas</h2><div>{platformIdeas.map((idea) => <span key={idea}>{idea}</span>)}</div></div>
+    </section>
   );
 }
 function AvatarSelector({ selected, select }: { selected: string; select: (id: string) => void }) {

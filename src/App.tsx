@@ -28,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-smooth-movement-menu-28";
+const BUILD_ID = "2026-08-31-world-art-gallery-29";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
@@ -89,6 +89,16 @@ const worlds: {
   { id: "arcade", name: "Pulse Arcade", tag: "PLAY", people: 14, color: "#ff4fad", icon: "✣", desc: "Targets, neon toys and multiplayer game spaces." },
   { id: "gallery", name: "Prism Gallery", tag: "CREATE", people: 5, color: "#ffcf73", icon: "◇", desc: "Walk through kinetic community art and media." },
 ];
+const worldImages: Record<WorldId, string> = {
+  fireside: "campfire.png",
+  neon: "neon-rooftop.png",
+  garden: "dream-garden.png",
+  studio: "creator-studio.png",
+  ocean: "aqua-abyss.png",
+  moon: "lunar-commons.png",
+  arcade: "pulse-arcade.png",
+  gallery: "prism-gallery.png",
+};
 const seedFriends = [
   ["NovaSkye", "In Dream Garden", "#8b7cff"],
   ["PixelFox", "Online", "#ff805d"],
@@ -702,6 +712,7 @@ function WorldCards({ join }: { join: (id: WorldId) => void }) {
             onClick={() => join(w.id)}
           >
             <div className={`world-visual ${w.id}`}>
+              <img src={`${import.meta.env.BASE_URL}worlds/${worldImages[w.id]}`} alt={`${w.name} world preview`} />
               <span>{w.icon}</span>
               <em>{w.tag}</em>
             </div>

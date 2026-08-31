@@ -28,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-clean-brand-logo-30";
+const BUILD_ID = "31";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },

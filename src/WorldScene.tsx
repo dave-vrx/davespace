@@ -125,7 +125,7 @@ export default function WorldScene({
         detail: [...remoteAvatars.keys()].map((peerId) => ({
           peerId,
           name: remoteNames.get(peerId) ?? "Guest",
-          avatarId: remoteAvatarIds.get(peerId) ?? "explorer",
+          avatarId: remoteAvatarIds.get(peerId) ?? "striker",
         })),
       }));
     const applyPlayerSelection = () => remoteAvatars.forEach((avatar, peerId) => {
@@ -140,7 +140,7 @@ export default function WorldScene({
     const ensurePeer = (peerId: string) => {
       let avatar = remoteAvatars.get(peerId);
       if (!avatar) {
-        const selected = remoteAvatarIds.get(peerId) ?? "explorer";
+        const selected = remoteAvatarIds.get(peerId) ?? "striker";
         avatar = makeRemoteAvatar(
           remoteNames.get(peerId) ?? "Guest",
           avatarTemplates.get(templateKey(selected)) ?? null,
@@ -273,10 +273,18 @@ export default function WorldScene({
     window.addEventListener("davespace-audio-stream", changeAudioStream);
     const body = makeBody();
     camera.add(body);
-    const localAvatar = makeRemoteAvatar(playerName, null, avatarId);
+    let localAvatar = makeRemoteAvatar(playerName, null, avatarId);
     localAvatar.visible = false;
     localAvatar.getObjectByName("nameplate-spine-anchor")!.visible = false;
     rig.add(localAvatar);
+    loadTemplate(avatarId, () => {
+      const upgraded = makeRemoteAvatar(playerName, avatarTemplates.get(templateKey(avatarId)) ?? null, avatarId);
+      upgraded.visible = localAvatar.visible;
+      upgraded.getObjectByName("nameplate-spine-anchor")!.visible = false;
+      rig.remove(localAvatar);
+      localAvatar = upgraded;
+      rig.add(localAvatar);
+    });
     let thirdPerson = false;
     const toggleThirdPerson = () => {
       if (renderer.xr.isPresenting) return;
@@ -737,12 +745,14 @@ export default function WorldScene({
       const viewerPosition = new THREE.Vector3();
       (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(viewerPosition);
       remoteAvatars.forEach((avatar) => {
+        animateRiggedFace(avatar, t);
         const plate = avatar.getObjectByName("avatar-nameplate");
         if (!plate) return;
         const platePosition = new THREE.Vector3();
         plate.getWorldPosition(platePosition);
         plate.lookAt(viewerPosition.x, platePosition.y, viewerPosition.z);
       });
+      animateRiggedFace(localAvatar, t);
       weather?.update(t);
       const hoveredTargets: THREE.Mesh[] = [];
       menuTargets.forEach((target) => {
@@ -1124,7 +1134,7 @@ function applySharedMedia(screen: THREE.Mesh, url: string) {
 function makeRemoteAvatar(
   name: string,
   template: THREE.Object3D | null = null,
-  avatarId = "explorer",
+  avatarId = "striker",
 ) {
   const group = new THREE.Group();
   const isAdmin = name.trim().toLowerCase() === "dave";
@@ -1163,6 +1173,7 @@ function makeRemoteAvatar(
     const box = new THREE.Box3().setFromObject(model);
     model.position.y = -box.min.y;
     model.rotation.y = Math.PI;
+    model.name = "rigged-human-model";
     model.traverse((part) => {
       if ((part as THREE.Mesh).isMesh) {
         const mesh = part as THREE.Mesh;
@@ -1176,7 +1187,7 @@ function makeRemoteAvatar(
       }
     });
     group.add(model);
-    head.visible = true;
+    head.visible = false;
     torso.visible = false;
   }
   group.add(head, torso);
@@ -1187,12 +1198,14 @@ function makeRemoteAvatar(
     const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.11, 5, 10), skin);
     hand.name = side;
     hand.position.set(x, 1.25, -0.15);
+    hand.visible = !template;
     group.add(hand);
   }
   for (const [name, x] of [["left-arm", -0.2], ["right-arm", 0.2]] as const) {
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.5, 5, 10), cloth);
     arm.name = name;
     arm.position.set(x, 1.15, 0);
+    arm.visible = !template;
     group.add(arm);
   }
   const canvas = document.createElement("canvas");
@@ -1241,6 +1254,26 @@ function makeRemoteAvatar(
   selectionCapsule.renderOrder = 1100;
   group.add(selectionCapsule);
   return group;
+}
+function animateRiggedFace(avatar: THREE.Object3D, time: number) {
+  if (avatar.userData.faceParts === undefined) {
+    const eyes: THREE.Object3D[] = [];
+    avatar.traverse((part) => {
+      if (/^eyes?$/i.test(part.name)) {
+        part.userData.openScaleY = part.scale.y;
+        eyes.push(part);
+      }
+    });
+    avatar.userData.faceParts = eyes;
+    avatar.userData.blinkOffset = Math.random() * 4.2;
+  }
+  const phase = (time + avatar.userData.blinkOffset) % 4.2;
+  const blink = phase > 3.98 && phase < 4.16
+    ? Math.max(.06, Math.abs(phase - 4.07) / .09)
+    : 1;
+  (avatar.userData.faceParts as THREE.Object3D[]).forEach((eye) => {
+    eye.scale.y = (eye.userData.openScaleY ?? 1) * blink;
+  });
 }
 function curlControllerHand(
   model: THREE.Object3D | null,

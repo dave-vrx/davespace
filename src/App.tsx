@@ -28,10 +28,10 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-world-lab-social-25";
+const BUILD_ID = "2026-08-31-human-default-avatar-26";
 const avatars = [
-  { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
-  { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
+  { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
+  { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
   { id: "coral", name: "Coral Scout", note: "Explorer rig variant", tint: "#ff648d" },
   { id: "mint", name: "Mint Voyager", note: "Explorer rig variant", tint: "#38e0bd" },
   { id: "sapphire", name: "Sapphire Pilot", note: "Explorer rig variant", tint: "#3b82f6" },
@@ -131,7 +131,15 @@ export default function App() {
     [draft, setDraft] = useState(""),
     [toast, setToast] = useState(""),
     [online, setOnline] = useState(1),
-    [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
+    [avatarId, setAvatarId] = useState(() => {
+      const saved = localStorage.getItem("davespace-avatar");
+      if (!localStorage.getItem("davespace-human-default-v1") && (!saved || saved === "explorer")) {
+        localStorage.setItem("davespace-human-default-v1", "1");
+        localStorage.setItem("davespace-avatar", "striker");
+        return "striker";
+      }
+      return saved ?? "striker";
+    });
   const [isMobile, setIsMobile] = useState(false);
   const [worldPlayers, setWorldPlayers] = useState<WorldPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<WorldPlayer | null>(null);
@@ -759,7 +767,7 @@ function AvatarSelector({ selected, select }: { selected: string; select: (id: s
         <div className="avatar-thumb"><img src={`${import.meta.env.BASE_URL}avatars/quaternius/preview.png`} alt={`${avatar.name} rig preview`} /></div>
         <strong>{avatar.name}</strong><span>{avatar.note}</span><b>{selected === avatar.id ? "EQUIPPED" : "SELECT"}</b>
       </button>)}</div>
-    <small>Models: Quaternius Universal Base Characters · CC0 1.0</small>
+    <small>Default human: CC0 Night Striker · 65-joint skeleton with articulated fingers. Alternatives: Quaternius CC0.</small>
   </section>;
 }
 function Events({ join }: { join: (id: WorldId) => void }) {

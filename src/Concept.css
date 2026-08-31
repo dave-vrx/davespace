@@ -371,3 +371,8 @@ button:focus-visible{outline:2px solid var(--cosmic-aqua);outline-offset:3px}
 .world-visual:before{content:'';position:absolute;z-index:1;inset:0;background:linear-gradient(180deg,transparent 42%,#050817b8 100%);pointer-events:none}
 .world-visual>span{position:relative;z-index:2;width:46px!important;height:46px!important;margin:auto 12px 12px auto!important;border-radius:15px!important;font-size:24px!important;align-self:end;justify-self:end}
 .world-visual>em{z-index:3!important}.world-grid article:hover .world-visual>img{transform:scale(1.075);filter:saturate(1.2) contrast(1.07)}
+
+/* Clean horizontal DAVESPACE navigation logo */
+.brand{display:flex!important;align-items:center!important;padding:4px 8px 24px!important}
+.brand:after{content:none!important;display:none!important}
+.brand-logo{display:block;width:100%;max-width:190px;height:auto;margin:0;filter:drop-shadow(0 10px 24px #5e4de744)}

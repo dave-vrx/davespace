@@ -28,7 +28,7 @@ import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
 type WorldPlayer = { peerId: string; name: string; avatarId: string };
-const BUILD_ID = "2026-08-31-world-art-gallery-29";
+const BUILD_ID = "2026-08-31-clean-brand-logo-30";
 const avatars = [
   { id: "striker", name: "DAVESPACE Human", note: "Default · 65 joints · finger rig", tint: "#44e0c0" },
   { id: "explorer", name: "Camp Explorer", note: "CC0 low-poly humanoid", tint: "#6257ff" },
@@ -547,10 +547,10 @@ export default function App() {
       <aside>
         <div className="brand">
           <img
-            className="logo-img"
-            src={`${import.meta.env.BASE_URL}logo.svg`}
+            className="brand-logo"
+            src={`${import.meta.env.BASE_URL}davespace-logo.svg`}
+            alt="DAVESPACE"
           />
-          <strong>DAVESPACE</strong>
         </div>
         {(["discover", "worlds", "events", "social", "avatar", "create"] as Tab[]).map((t, i) => {
           const I = [Compass, Box, CalendarDays, Users, UserRound, Waypoints][i];

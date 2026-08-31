@@ -103,6 +103,7 @@ export default function WorldScene({
     const remoteAvatars = new Map<string, THREE.Group>();
     const remoteNames = new Map<string, string>();
     const remoteAvatarIds = new Map<string, string>();
+    let selectedPeerId: string | null = null;
     const avatarTemplates = new Map<string, THREE.Object3D>();
     const templateKey = (id: string) => id === "striker" ? "striker" : "explorer";
     const loadTemplate = (id: string, ready?: () => void) => {
@@ -119,6 +120,23 @@ export default function WorldScene({
       window.dispatchEvent(
         new CustomEvent("vrspace-presence", { detail: remoteAvatars.size + 1 }),
       );
+    const publishPlayers = () =>
+      window.dispatchEvent(new CustomEvent("davespace-world-players", {
+        detail: [...remoteAvatars.keys()].map((peerId) => ({
+          peerId,
+          name: remoteNames.get(peerId) ?? "Guest",
+          avatarId: remoteAvatarIds.get(peerId) ?? "explorer",
+        })),
+      }));
+    const applyPlayerSelection = () => remoteAvatars.forEach((avatar, peerId) => {
+      const capsule = avatar.getObjectByName("player-selection-capsule");
+      if (capsule) capsule.visible = peerId === selectedPeerId;
+    });
+    const selectPlayer = (event: Event) => {
+      selectedPeerId = (event as CustomEvent<string | null>).detail;
+      applyPlayerSelection();
+    };
+    window.addEventListener("davespace-select-player", selectPlayer);
     const ensurePeer = (peerId: string) => {
       let avatar = remoteAvatars.get(peerId);
       if (!avatar) {
@@ -130,6 +148,7 @@ export default function WorldScene({
         );
         remoteAvatars.set(peerId, avatar);
         scene.add(avatar);
+        applyPlayerSelection();
       }
       return avatar;
     };
@@ -146,12 +165,14 @@ export default function WorldScene({
     nameAction.onMessage = (peerName, { peerId }) => {
       remoteNames.set(peerId, peerName);
       rebuildPeer(peerId);
+      publishPlayers();
       showHUDNotice(camera, `${peerName} joined the world`, "#72ffd0");
       window.dispatchEvent(new CustomEvent("davespace-system-notification", { detail: `${peerName} joined the world` }));
     };
     avatarAction.onMessage = (selected, { peerId }) => {
       remoteAvatarIds.set(peerId, selected);
       loadTemplate(selected, () => rebuildPeer(peerId));
+      publishPlayers();
     };
     poseAction.onMessage = (pose, { peerId }) => {
       const avatar = ensurePeer(peerId);
@@ -201,6 +222,7 @@ export default function WorldScene({
     room.onPeerJoin = (peerId) => {
       ensurePeer(peerId);
       publishPresence();
+      publishPlayers();
       nameAction.send(playerName, { target: peerId });
       avatarAction.send(avatarId, { target: peerId });
       if (audioStream) room.addStream(audioStream, { target: peerId });
@@ -211,6 +233,7 @@ export default function WorldScene({
       if (avatar) scene.remove(avatar);
       remoteAvatars.delete(peerId);
       publishPresence();
+      publishPlayers();
       peerAudio.get(peerId)?.remove();
       peerAudio.delete(peerId);
       showHUDNotice(camera, `${departingName} left the world`, "#ff8dbb");
@@ -775,6 +798,7 @@ export default function WorldScene({
       window.removeEventListener("davespace-audio-stream", changeAudioStream);
       window.removeEventListener("davespace-avatar-changed", changeLocalAvatar);
       window.removeEventListener("davespace-toggle-third-person", toggleThirdPerson);
+      window.removeEventListener("davespace-select-player", selectPlayer);
       room.leave();
       peerAudio.forEach((audio) => audio.remove());
       const sharedVideo = sharedWorldScreen?.userData.video as HTMLVideoElement | undefined;
@@ -1201,6 +1225,21 @@ function makeRemoteAvatar(
   label.position.y = 0.7;
   spineAnchor.add(label);
   group.add(spineAnchor);
+  const selectionCapsule = new THREE.Mesh(
+    new THREE.CapsuleGeometry(.42, 1.15, 10, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x8b72ff,
+      transparent: true,
+      opacity: .16,
+      depthWrite: false,
+      wireframe: true,
+    }),
+  );
+  selectionCapsule.name = "player-selection-capsule";
+  selectionCapsule.position.y = .93;
+  selectionCapsule.visible = false;
+  selectionCapsule.renderOrder = 1100;
+  group.add(selectionCapsule);
   return group;
 }
 function curlControllerHand(

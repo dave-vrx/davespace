@@ -25,7 +25,8 @@ import "./Friendly.css";
 import "./Concept.css";
 type Screen = "boot" | "profile" | "hub" | "world";
 type Tab = "discover" | "social" | "worlds" | "events" | "avatar" | "create" | "settings";
-const BUILD_ID = "2026-08-31-menu-clock-polish-23";
+type WorldPlayer = { peerId: string; name: string; avatarId: string };
+const BUILD_ID = "2026-08-31-player-social-capsule-24";
 const avatars = [
   { id: "explorer", name: "Camp Explorer", note: "Default · 8 animations", tint: "#6257ff" },
   { id: "striker", name: "Night Striker", note: "65-joint humanoid", tint: "#44e0c0" },
@@ -106,6 +107,8 @@ export default function App() {
     [online, setOnline] = useState(1),
     [avatarId, setAvatarId] = useState(() => localStorage.getItem("davespace-avatar") ?? "explorer");
   const [isMobile, setIsMobile] = useState(false);
+  const [worldPlayers, setWorldPlayers] = useState<WorldPlayer[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<WorldPlayer | null>(null);
   const [localTime, setLocalTime] = useState(() =>
     new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }).format(new Date()),
   );
@@ -187,6 +190,21 @@ export default function App() {
     window.addEventListener("vrspace-presence", presence);
     return () => window.removeEventListener("vrspace-presence", presence);
   }, []);
+  useEffect(() => {
+    const updatePlayers = (event: Event) => {
+      const players = (event as CustomEvent<WorldPlayer[]>).detail;
+      setWorldPlayers(players);
+      setSelectedPlayer((current) => current ? players.find((player) => player.peerId === current.peerId) ?? null : null);
+    };
+    window.addEventListener("davespace-world-players", updatePlayers);
+    return () => window.removeEventListener("davespace-world-players", updatePlayers);
+  }, []);
+  useEffect(() => {
+    if (!panel) {
+      setSelectedPlayer(null);
+      window.dispatchEvent(new CustomEvent("davespace-select-player", { detail: null }));
+    }
+  }, [panel]);
   useEffect(() => {
     const toggle = () => setPanel((value) => !value);
     window.addEventListener("vrspace-toggle-menu", toggle);
@@ -271,6 +289,16 @@ export default function App() {
         setFriends((f) => [...f, [v.trim(), "Request sent", "#70f1bd"]]);
         setToast("Friend request sent");
       }
+    },
+    addPlayerFriend = (player: WorldPlayer) => {
+      setFriends((current) => current.some((friend) => friend[0].toLowerCase() === player.name.toLowerCase())
+        ? current
+        : [...current, [player.name, "Request sent", "#8b72ff"]]);
+      setToast(`Friend request sent to ${player.name}`);
+    },
+    selectWorldPlayer = (player: WorldPlayer) => {
+      setSelectedPlayer(player);
+      window.dispatchEvent(new CustomEvent("davespace-select-player", { detail: player.peerId }));
     },
     openWorldPanel = (section?: "people" | "chat") => {
       setPanel(true);
@@ -431,7 +459,27 @@ export default function App() {
                 <button onClick={() => window.dispatchEvent(new Event("davespace-toggle-third-person"))}>CHANGE VIEW</button>
               </div>
             </section>
-            <div id="world-people"><Friends data={friends} add={add} /></div>
+            <section id="world-people" className="page-card world-player-panel">
+              <small>PEOPLE HERE</small>
+              <h2>Players in this world</h2>
+              <button className="world-player-row self" type="button">
+                <b>{name[0]?.toUpperCase()}</b><span><strong>{name}</strong><small>YOU · {avatarId.toUpperCase()}</small></span>
+              </button>
+              {worldPlayers.length === 0 && <p className="player-empty">Waiting for another player to join…</p>}
+              {worldPlayers.map((player) => (
+                <button key={player.peerId} className={`world-player-row ${selectedPlayer?.peerId === player.peerId ? "selected" : ""}`} onClick={() => selectWorldPlayer(player)}>
+                  <b>{player.name[0]?.toUpperCase()}</b><span><strong>{player.name}</strong><small>ONLINE · {player.avatarId.toUpperCase()}</small></span><em>VIEW</em>
+                </button>
+              ))}
+              {selectedPlayer && (
+                <div className="player-details">
+                  <div className="player-details-avatar">{selectedPlayer.name[0]?.toUpperCase()}</div>
+                  <div><small>SELECTED PLAYER</small><h3>{selectedPlayer.name}</h3><p>Online now in {worlds.find((item) => item.id === world)?.name} · Avatar: {selectedPlayer.avatarId}</p></div>
+                  <button onClick={() => addPlayerFriend(selectedPlayer)}><Plus /> ADD FRIEND</button>
+                </div>
+              )}
+            </section>
+            <div><Friends data={friends} add={add} /></div>
             <div id="world-chat"><Chat {...{ chat, draft, setDraft, send }} /></div>
             <YouTubePlayer />
             <AvatarSelector selected={avatarId} select={(id) => { setAvatarId(id); localStorage.setItem("davespace-avatar", id); }} />
